@@ -1,0 +1,285 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { StaffLayout } from '@/components/StaffLayout';
+import { User, UserRole } from '@/lib/types';
+import { formatWIB } from '@/lib/utils/datetime';
+
+export default function UsersManagementPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // New staff form state
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [roleCode, setRoleCode] = useState<UserRole>('PACKER');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('wh_auth_token');
+      const res = await fetch('/api/users', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const handleToggleActive = async (user: User) => {
+    try {
+      const token = localStorage.getItem('wh_auth_token');
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ is_active: !user.is_active }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update user');
+      await fetchUsers();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const token = localStorage.getItem('wh_auth_token');
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          username: username.trim(),
+          password,
+          role_code: roleCode,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create user');
+
+      setIsCreateOpen(false);
+      setName('');
+      setUsername('');
+      setPassword('');
+      await fetchUsers();
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getRoleBadge = (role: UserRole) => {
+    const map: Record<UserRole, string> = {
+      SUPERADMIN: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/40 shadow-[0_0_12px_rgba(99,102,241,0.25)]',
+      PACKER: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]',
+      PICKUP_ADMIN: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]',
+    };
+    return (
+      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border backdrop-blur-md ${map[role]}`}>
+        {role}
+      </span>
+    );
+  };
+
+  return (
+    <StaffLayout
+      title="Staff Governance & Role Matrix"
+      subtitle="Role-based access control, cryptographic provisioning, and session deactivation"
+      allowedRoles={['SUPERADMIN']}
+      actions={
+        <button
+          onClick={() => {
+            setIsCreateOpen(true);
+            setErrorMsg(null);
+          }}
+          className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 hover:scale-105"
+        >
+          <span>+ Provision Staff</span>
+        </button>
+      }
+    >
+      <div className="space-y-6">
+        <div className="glass-panel border-[var(--border-subtle)] rounded-3xl shadow-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-white/[0.02] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
+                <tr>
+                  <th className="px-6 py-4">Full Name</th>
+                  <th className="px-6 py-4">Username</th>
+                  <th className="px-6 py-4">System Role</th>
+                  <th className="px-6 py-4">Last Login (WIB)</th>
+                  <th className="px-6 py-4">Account State</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)]">
+                {users.map((u) => (
+                  <tr key={u.id} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="px-6 py-4 font-bold text-white">{u.name}</td>
+                    <td className="px-6 py-4 font-mono text-slate-300">@{u.username}</td>
+                    <td className="px-6 py-4">{getRoleBadge(u.role_code)}</td>
+                    <td className="px-6 py-4 font-mono text-[11px] text-[var(--text-muted)]">
+                      {formatWIB(u.last_login_at)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.is_active
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${u.is_active ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                        {u.is_active ? 'ACTIVE' : 'DEACTIVATED'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleToggleActive(u)}
+                        className={`px-3 py-1 rounded-xl border text-xs font-semibold transition-all ${
+                          u.is_active
+                            ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300'
+                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-300'
+                        }`}
+                      >
+                        {u.is_active ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* PROVISION USER MODAL */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel-elevated border-indigo-500/50 rounded-3xl max-w-md w-full shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+              <h3 className="text-base font-black text-white tracking-tight">
+                Provision New Logistics Staff
+              </h3>
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                className="text-[var(--text-muted)] hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            {errorMsg && (
+              <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+                {errorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
+                  Full Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. John Packer"
+                  required
+                  className="w-full px-4 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
+                  Username <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="e.g. packer2"
+                  required
+                  className="w-full px-4 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
+                  Temporary Password <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min 6 characters"
+                  required
+                  minLength={6}
+                  className="w-full px-4 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
+                  Role Assignment
+                </label>
+                <select
+                  value={roleCode}
+                  onChange={(e) => setRoleCode(e.target.value as UserRole)}
+                  className="w-full px-4 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs"
+                >
+                  <option value="PACKER">PACKER (Workstation Verification)</option>
+                  <option value="PICKUP_ADMIN">PICKUP_ADMIN (Staging Bay & Dispatch)</option>
+                  <option value="SUPERADMIN">SUPERADMIN (Full Privileges)</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="flex-1 py-2.5 px-4 rounded-2xl glass-btn text-xs text-[var(--text-secondary)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-2 py-2.5 px-5 rounded-2xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-black text-xs disabled:opacity-50 shadow-lg shadow-indigo-500/25"
+                >
+                  {submitting ? 'Creating...' : 'Create Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </StaffLayout>
+  );
+}
