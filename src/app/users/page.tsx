@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, X } from 'lucide-react';
 import { StaffLayout } from '@/components/StaffLayout';
 import { User, UserRole } from '@/lib/types';
 import { formatWIB } from '@/lib/utils/datetime';
@@ -96,12 +97,12 @@ export default function UsersManagementPage() {
 
   const getRoleBadge = (role: UserRole) => {
     const map: Record<UserRole, string> = {
-      SUPERADMIN: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/40 shadow-[0_0_12px_rgba(99,102,241,0.25)]',
-      PACKER: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]',
-      PICKUP_ADMIN: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]',
+      SUPERADMIN: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
+      PACKER: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800',
+      PICKUP_ADMIN: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
     };
     return (
-      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border backdrop-blur-md ${map[role]}`}>
+      <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-mono font-bold border ${map[role]}`}>
         {role}
       </span>
     );
@@ -109,8 +110,8 @@ export default function UsersManagementPage() {
 
   return (
     <StaffLayout
-      title="Staff Governance & Role Matrix"
-      subtitle="Role-based access control, cryptographic provisioning, and session deactivation"
+      title="Manajemen Pengguna & Hak Akses"
+      subtitle="Pengaturan akun staf gudang, penetapan hak akses peran (RBAC), dan aktivasi akun"
       allowedRoles={['SUPERADMIN']}
       actions={
         <button
@@ -118,36 +119,37 @@ export default function UsersManagementPage() {
             setIsCreateOpen(true);
             setErrorMsg(null);
           }}
-          className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 hover:scale-105"
+          className="px-3.5 py-2 rounded-lg bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-bold text-xs shadow-sm transition-colors flex items-center gap-1.5"
         >
-          <span>+ Provision Staff</span>
+          <Plus className="w-4 h-4" />
+          <span>Tambah Akun Staf</span>
         </button>
       }
     >
       <div className="space-y-6">
-        <div className="glass-panel border-[var(--border-subtle)] rounded-3xl shadow-2xl overflow-hidden">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-white/[0.02] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
+              <thead className="bg-[var(--bg-primary)] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
                 <tr>
-                  <th className="px-6 py-4">Full Name</th>
-                  <th className="px-6 py-4">Username</th>
-                  <th className="px-6 py-4">System Role</th>
-                  <th className="px-6 py-4">Last Login (WIB)</th>
-                  <th className="px-6 py-4">Account State</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-4 py-3">Nama Lengkap</th>
+                  <th className="px-4 py-3">Username</th>
+                  <th className="px-4 py-3">Peran Akses</th>
+                  <th className="px-4 py-3">Login Terakhir</th>
+                  <th className="px-4 py-3">Status Akun</th>
+                  <th className="px-4 py-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)]">
                 {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-white/[0.03] transition-colors">
-                    <td className="px-6 py-4 font-bold text-white">{u.name}</td>
-                    <td className="px-6 py-4 font-mono text-slate-300">@{u.username}</td>
-                    <td className="px-6 py-4">{getRoleBadge(u.role_code)}</td>
-                    <td className="px-6 py-4 font-mono text-[11px] text-[var(--text-muted)]">
+                  <tr key={u.id} className="hover:bg-[var(--bg-card-hover)] transition-colors">
+                    <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">{u.name}</td>
+                    <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">@{u.username}</td>
+                    <td className="px-4 py-3">{getRoleBadge(u.role_code)}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">
                       {formatWIB(u.last_login_at)}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                           u.is_active
@@ -189,9 +191,10 @@ export default function UsersManagementPage() {
               </h3>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                className="text-[var(--text-muted)] hover:text-white"
+                className="text-[var(--text-muted)] hover:text-white transition-colors"
+                title="Tutup"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 

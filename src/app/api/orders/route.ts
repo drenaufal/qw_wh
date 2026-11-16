@@ -10,14 +10,17 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
+    const exclude_status = searchParams.get('exclude_status');
     const priority = searchParams.get('priority');
     const search = searchParams.get('search');
     const limit = parseInt(searchParams.get('limit') || '150');
 
     let sql = `
-      SELECT o.id, o.external_order_id, o.order_number, o.customer_name, o.courier_name,
+      SELECT o.id, o.external_order_id, o.order_number, o.no_wsa, o.picking_no, o.courier_type, o.pickup_code,
+             o.customer_name, o.courier_name,
              o.driver_id, o.status, o.priority_status, o.driver_arrived_at, o.packing_started_at,
              o.packed_at, o.shipped_at, o.driver_wait_duration_seconds, o.packing_duration_seconds,
+             o.queue_number,
              o.created_at, o.updated_at,
              d.name as driver_name, d.phone as driver_phone,
              (
@@ -60,6 +63,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    if (exclude_status) {
+      if (exclude_status.includes(',')) {
+        const statuses = exclude_status.split(',');
+        sql += ` AND NOT (o.status = ANY($${paramIndex}))`;
+        params.push(statuses);
+        paramIndex++;
+      } else {
+        sql += ` AND o.status != $${paramIndex}`;
+        params.push(exclude_status);
+        paramIndex++;
+      }
+    }
+
     if (priority) {
       sql += ` AND o.priority_status = $${paramIndex}`;
       params.push(priority);
@@ -67,17 +83,26 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      sql += ` AND (o.order_number ILIKE $${paramIndex} OR o.customer_name ILIKE $${paramIndex} OR o.courier_name ILIKE $${paramIndex})`;
+      sql += ` AND (
+        o.order_number ILIKE $${paramIndex} OR
+        o.no_wsa ILIKE $${paramIndex} OR
+        o.picking_no ILIKE $${paramIndex} OR
+        o.pickup_code ILIKE $${paramIndex} OR
+        o.customer_name ILIKE $${paramIndex} OR
+        o.courier_name ILIKE $${paramIndex} OR
+        o.courier_type ILIKE $${paramIndex}
+      )`;
       params.push(`%${search.trim()}%`);
       paramIndex++;
     }
 
-    // Sort: If driver_waiting, sort ASC by driver_arrived_at; otherwise created_at DESC
+    // Sort: If driver_waiting, sort ASC by queue_number and driver_arrived_at; otherwise created_at DESC
     if (priority === 'DRIVER_WAITING') {
-      sql += ` ORDER BY o.driver_arrived_at ASC NULLS LAST, o.created_at ASC`;
+      sql += ` ORDER BY o.queue_number ASC NULLS LAST, o.driver_arrived_at ASC NULLS LAST, o.created_at ASC`;
     } else {
       sql += ` ORDER BY 
         CASE WHEN o.priority_status = 'DRIVER_WAITING' THEN 0 ELSE 1 END,
+        CASE WHEN o.priority_status = 'DRIVER_WAITING' THEN o.queue_number ELSE NULL END ASC NULLS LAST,
         o.created_at DESC`;
     }
 
@@ -92,10 +117,10 @@ export async function GET(req: NextRequest) {
 
     if (orderIds.length > 0) {
       const itemsRes = await query<OrderItem>(
-        `SELECT id, order_id, sku, product_name, quantity, created_at, updated_at
+        `SELECT id, order_id, sku, size, warna, line_no, product_name, quantity, created_at, updated_at
          FROM order_items
          WHERE order_id = ANY($1)
-         ORDER BY created_at ASC`,
+         ORDER BY line_no ASC NULLS LAST, created_at ASC`,
         [orderIds]
       );
 

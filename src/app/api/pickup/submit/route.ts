@@ -174,6 +174,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       receipt: result.receipt,
+      data: result.receipt,
       order: result.order,
     });
   } catch (error: any) {

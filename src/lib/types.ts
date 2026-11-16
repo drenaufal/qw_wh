@@ -21,6 +21,9 @@ export interface OrderItem {
   id: string;
   order_id: string;
   sku?: string | null;
+  size?: string | null;
+  warna?: string | null;
+  line_no?: number | null;
   product_name: string;
   quantity: number;
   created_at: string;
@@ -31,6 +34,10 @@ export interface Order {
   id: string;
   external_order_id?: string | null;
   order_number: string;
+  no_wsa?: string | null;
+  picking_no?: string | null;
+  courier_type?: string | null;
+  pickup_code?: string | null;
   customer_name: string | null;
   courier_name: string | null;
   driver_id?: string | null;
@@ -44,6 +51,7 @@ export interface Order {
   shipped_at: string | null;
   driver_wait_duration_seconds: number | null;
   packing_duration_seconds: number | null;
+  queue_number?: number | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];
@@ -124,5 +132,20 @@ export interface DashboardStats {
   ready_count: number;
   shipped_count: number;
   driver_waiting_count: number;
+}
+
+export type SoundPreset = 'airport' | 'bell' | 'elevator' | 'marimba' | 'digital' | 'custom';
+
+export interface TVAudioSettings {
+  enabled: boolean;
+  preset: SoundPreset;
+  volume: number; // 0.1 to 1.0
+  customAudioBase64?: string | null;
+  customAudioName?: string | null;
+  triggers: {
+    driverArrival: boolean;
+    packingComplete: boolean;
+    orderUpdate: boolean;
+  };
 }
 

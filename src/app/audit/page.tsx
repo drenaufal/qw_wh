@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Search, X } from 'lucide-react';
 import { StaffLayout } from '@/components/StaffLayout';
 import { AuditLog } from '@/lib/types';
 import { formatWIB } from '@/lib/utils/datetime';
@@ -39,21 +40,21 @@ export default function ForensicAuditPage() {
 
   return (
     <StaffLayout
-      title="Forensic State Diff & Audit Trail"
-      subtitle="Immutable event logs capturing transactional mutations, actor telemetry, and old/new state JSON diffs"
+      title="Log Audit Aktivitas & Mutasi Sistem"
+      subtitle="Catatan riwayat perubahan status transaksi, pengguna yang melakukan aksi, dan selisih data"
       allowedRoles={['SUPERADMIN']}
     >
       <div className="space-y-6">
         {/* Filter bar */}
-        <div className="glass-panel p-5 rounded-3xl flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[var(--text-muted)]">Action Type:</span>
+        <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] flex flex-wrap items-center gap-3 shadow-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Tipe Aksi:</span>
             <select
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
-              className="px-3.5 py-2 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs focus:outline-none"
+              className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
             >
-              <option value="">All Actions</option>
+              <option value="">Semua Aksi</option>
               <option value="USER_LOGIN">USER_LOGIN</option>
               <option value="ORDER_CREATED">ORDER_CREATED</option>
               <option value="DRIVER_ARRIVAL">DRIVER_ARRIVAL</option>
@@ -66,36 +67,36 @@ export default function ForensicAuditPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[var(--text-muted)]">Entity:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Entitas:</span>
             <select
               value={entityFilter}
               onChange={(e) => setEntityFilter(e.target.value)}
-              className="px-3.5 py-2 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs focus:outline-none"
+              className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
             >
-              <option value="">All Entities</option>
+              <option value="">Semua Entitas</option>
               <option value="ORDER">ORDER</option>
               <option value="USER">USER</option>
             </select>
           </div>
 
           <span className="text-xs text-[var(--text-muted)] ml-auto font-mono">
-            Telemetry count: <span className="text-white font-bold">{logs.length}</span> recorded mutations
+            Total log: <span className="text-[var(--text-primary)] font-bold">{logs.length}</span> aktivitas
           </span>
         </div>
 
         {/* Logs Table */}
-        <div className="glass-panel border-[var(--border-subtle)] rounded-3xl shadow-2xl overflow-hidden">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-white/[0.02] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
+              <thead className="bg-[var(--bg-primary)] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
                 <tr>
-                  <th className="px-6 py-4">Timestamp (WIB)</th>
-                  <th className="px-6 py-4">Actor</th>
-                  <th className="px-6 py-4">Action</th>
-                  <th className="px-6 py-4">Entity</th>
-                  <th className="px-6 py-4">Entity ID</th>
-                  <th className="px-6 py-4 text-right">State Diff</th>
+                  <th className="px-4 py-3">Waktu (WIB)</th>
+                  <th className="px-4 py-3">Pelaku</th>
+                  <th className="px-4 py-3">Tipe Aksi</th>
+                  <th className="px-4 py-3">Entitas</th>
+                  <th className="px-4 py-3">ID Entitas</th>
+                  <th className="px-4 py-3 text-right">Detail Diff</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)]">
@@ -129,9 +130,10 @@ export default function ForensicAuditPage() {
                       <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => setSelectedLog(log)}
-                          className="px-3.5 py-1.5 rounded-xl glass-btn text-xs font-bold text-slate-300 hover:text-white"
+                          className="px-3.5 py-1.5 rounded-xl glass-btn text-xs font-bold text-slate-300 hover:text-white inline-flex items-center gap-1.5"
                         >
-                          Inspect Diff 🔍
+                          <Search className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Inspect Diff</span>
                         </button>
                       </td>
                     </tr>
@@ -158,9 +160,10 @@ export default function ForensicAuditPage() {
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-[var(--text-muted)] hover:text-white text-base"
+                className="text-[var(--text-muted)] hover:text-white transition-colors"
+                title="Tutup"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 

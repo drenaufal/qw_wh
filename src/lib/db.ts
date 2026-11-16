@@ -1,6 +1,28 @@
 import { Pool, PoolClient } from 'pg';
+import fs from 'fs';
+import path from 'path';
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:prestasi10@localhost:5432/que_wh';
+// Load .env.local if running standalone script via tsx/node
+try {
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf-8').split('\n');
+    for (const line of lines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let value = (match[2] || '').trim().replace(/^['"]|['"]$/g, '');
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    }
+  }
+} catch {
+  // ignore
+}
+
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:prestasi10@localhost:5432/qw_whv4';
 
 const pool = new Pool({
   connectionString,

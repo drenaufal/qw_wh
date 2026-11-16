@@ -1,11 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { StaffLayout } from '@/components/StaffLayout';
 import { Order } from '@/lib/types';
 import { useSSE } from '@/hooks/use-sse';
 import { formatWIB, formatDuration } from '@/lib/utils/datetime';
 import { StatusBadge, PriorityBadge } from '@/components/ui';
+import {
+  RefreshCw,
+  Plus,
+  CheckCircle2,
+  AlertTriangle,
+  Search,
+  Truck,
+  ArrowRight,
+  X,
+} from 'lucide-react';
 
 export default function OrderManagementPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -29,19 +40,32 @@ export default function OrderManagementPage() {
   const [submittingCreate, setSubmittingCreate] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Sync state
+  const [syncingExternal, setSyncingExternal] = useState(false);
+  const [syncNotification, setSyncNotification] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+
   const { subscribe } = useSSE();
 
   const fetchOrders = useCallback(async () => {
     try {
       let url = '/api/orders?limit=150';
-      if (statusFilter !== 'ALL') url += `&status=${statusFilter}`;
+      if (statusFilter !== 'ALL') {
+        url += `&status=${statusFilter}`;
+      } else {
+        url += '&exclude_status=SHIP';
+      }
       if (priorityFilter !== 'ALL') url += `&priority=${priorityFilter}`;
       if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
 
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setOrders(data.orders || []);
+        // Strictly exclude any shipped orders from active processing list
+        const activeOrders = (data.orders || []).filter((o: Order) => o.status !== 'SHIP');
+        setOrders(activeOrders);
       }
     } catch (err) {
       console.error('Failed to fetch orders:', err);
@@ -65,6 +89,31 @@ export default function OrderManagementPage() {
       unsub3();
     };
   }, [subscribe, fetchOrders]);
+
+  const handleSyncExternal = async () => {
+    setSyncingExternal(true);
+    setSyncNotification(null);
+    try {
+      const res = await fetch('/api/orders/sync-external');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to sync orders from external API');
+
+      setSyncNotification({
+        type: 'success',
+        text: `Berhasil sinkronisasi ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`,
+      });
+      await fetchOrders();
+      setTimeout(() => setSyncNotification(null), 6000);
+    } catch (err: any) {
+      setSyncNotification({
+        type: 'error',
+        text: err.message || 'Gagal menarik data dari external API',
+      });
+      setTimeout(() => setSyncNotification(null), 6000);
+    } finally {
+      setSyncingExternal(false);
+    }
+  };
 
   const openDetail = async (orderId: string) => {
     setDetailLoading(true);
@@ -142,121 +191,193 @@ export default function OrderManagementPage() {
 
   return (
     <StaffLayout
-      title="Order Lifecycle & Manifest Database"
-      subtitle="Complete state mutation log, manual order injection, SLA performance analysis, and photo audit"
+      title="Daftar Antrian & Manajemen Pesanan"
+      subtitle="Monitoring status pesanan aktif, pembuatan order baru, analisis SLA waktu kemas, dan pelacakan mutasi"
       actions={
-        <button
-          onClick={() => {
-            const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-            setCreateOrderNumber(`ORD-${randomSuffix}`);
-            setIsCreateOpen(true);
-          }}
-          className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 hover:scale-105"
-        >
-          <span>+ Create Order</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleSyncExternal}
+            disabled={syncingExternal}
+            className="px-3.5 py-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] font-semibold text-xs text-[var(--text-secondary)] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            title="Tarik data order dari external ERP / WMS"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncingExternal ? 'animate-spin' : ''}`} />
+            <span>{syncingExternal ? 'Menarik Data...' : 'Tarik Order dari API'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+              setCreateOrderNumber(`ORD-${randomSuffix}`);
+              setIsCreateOpen(true);
+            }}
+            className="px-3.5 py-2 rounded-lg bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-bold text-xs shadow-sm transition-colors flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Buat Order Baru</span>
+          </button>
+        </div>
       }
     >
       <div className="space-y-6">
+        {syncNotification && (
+          <div
+            className={`p-4 rounded-2xl border text-xs font-bold flex items-center justify-between transition-all ${
+              syncNotification.type === 'success'
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+                : 'bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.2)]'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {syncNotification.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              <span>{syncNotification.text}</span>
+            </div>
+            <button
+              onClick={() => setSyncNotification(null)}
+              className="text-white/60 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Search & Filters */}
-        <div className="glass-panel p-5 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
           <div className="relative w-full md:w-96">
-            <span className="absolute left-4 top-3 text-sm text-[var(--text-muted)]">🔍</span>
+            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-[var(--text-muted)]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Order Number, Customer, or Fleet..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs focus:outline-none focus:border-indigo-500 font-medium"
+              placeholder="Cari No. Order, Penerima, atau Ekspedisi..."
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
             {/* Status Filter */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-[var(--text-muted)]">Status:</span>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3.5 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
               >
-                <option value="ALL">All Statuses</option>
-                <option value="WAITING">WAITING</option>
-                <option value="PACKING">PACKING</option>
-                <option value="READY_FOR_PICKUP">READY_FOR_PICKUP</option>
-                <option value="SHIP">SHIP</option>
+                <option value="ALL">Semua Aktif (Non-Shipped)</option>
+                <option value="WAITING">WAITING (Menunggu)</option>
+                <option value="PACKING">PACKING (Sedang Kemas)</option>
+                <option value="READY_FOR_PICKUP">READY_FOR_PICKUP (Siap Ambil)</option>
               </select>
             </div>
 
             {/* Priority Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[var(--text-muted)]">Priority:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-[var(--text-muted)]">Prioritas:</span>
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
-                className="px-3.5 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
               >
-                <option value="ALL">All Priorities</option>
-                <option value="DRIVER_WAITING">DRIVER_WAITING</option>
+                <option value="ALL">Semua Prioritas</option>
+                <option value="DRIVER_WAITING">DRIVER_WAITING (Kurir Tiba)</option>
                 <option value="NORMAL">NORMAL</option>
               </select>
             </div>
+
+            <Link
+              href="/shipped-orders"
+              className="px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 transition-colors"
+            >
+              <Truck className="w-3.5 h-3.5 text-purple-500" />
+              <span>Riwayat Terkirim</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
 
         {/* Orders Table */}
-        <div className="glass-panel border-[var(--border-subtle)] rounded-3xl shadow-2xl overflow-hidden">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-white/[0.02] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
+              <thead className="bg-[var(--bg-primary)] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
                 <tr>
-                  <th className="px-6 py-4">Order Number</th>
-                  <th className="px-6 py-4">Customer</th>
-                  <th className="px-6 py-4">Courier Fleet</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Priority</th>
-                  <th className="px-6 py-4">SLA Durations</th>
-                  <th className="px-6 py-4">Created At (WIB)</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-4 py-3">Nomor Order</th>
+                  <th className="px-4 py-3">Nama Penerima</th>
+                  <th className="px-4 py-3">Ekspedisi / Armada</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Prioritas</th>
+                  <th className="px-4 py-3">Durasi SLA</th>
+                  <th className="px-4 py-3">Dibuat Pada</th>
+                  <th className="px-4 py-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)]">
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-muted)]">
-                      No matching orders found.
+                    <td colSpan={8} className="px-4 py-10 text-center text-[var(--text-muted)]">
+                      Tidak ada pesanan yang sesuai dengan filter.
                     </td>
                   </tr>
                 ) : (
                   orders.map((ord) => (
                     <tr
                       key={ord.id}
-                      className="hover:bg-white/[0.03] transition-colors"
+                      className="hover:bg-[var(--bg-card-hover)] transition-colors"
                     >
-                      <td className="px-6 py-4 font-mono font-bold text-white">
-                        {ord.order_number}
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-bold text-[var(--text-primary)] text-sm block">
+                          {ord.order_number}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1 mt-1 font-mono text-[10px]">
+                          {ord.no_wsa && (
+                            <span className="px-1.5 py-0.5 rounded bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                              WSA: {ord.no_wsa}
+                            </span>
+                          )}
+                          {ord.picking_no && (
+                            <span className="px-1.5 py-0.5 rounded bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                              Pick: {ord.picking_no}
+                            </span>
+                          )}
+                          {ord.pickup_code && (
+                            <span className="px-1.5 py-0.5 rounded bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                              Code: {ord.pickup_code}
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 font-semibold text-white">
+                      <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
                         {ord.customer_name || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-cyan-400 font-bold">
-                        {ord.courier_name || 'General Fleet'}
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-[var(--text-primary)] block">
+                          {ord.courier_name || ord.courier_type || 'General Fleet'}
+                        </span>
+                        {ord.courier_type && ord.courier_type !== ord.courier_name && (
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                            Tipe: {ord.courier_type}
+                          </span>
+                        )}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <StatusBadge status={ord.status} />
                       </td>
-                      <td className="px-6 py-4">
-                        <PriorityBadge priority={ord.priority_status} />
+                      <td className="px-4 py-3">
+                        <PriorityBadge priority={ord.priority_status} queueNumber={ord.queue_number} />
                       </td>
-                      <td className="px-6 py-4 font-mono text-[11px] space-y-0.5">
+                      <td className="px-4 py-3 font-mono text-[11px] space-y-0.5">
                         {ord.packing_duration_seconds !== null && (
-                          <div className="text-cyan-400 font-bold">
-                            Pack: {formatDuration(ord.packing_duration_seconds)}
+                          <div className="text-sky-700 dark:text-sky-400 font-semibold">
+                            Kemas: {formatDuration(ord.packing_duration_seconds)}
                           </div>
                         )}
                         {ord.driver_wait_duration_seconds !== null && (
-                          <div className="text-amber-400 font-bold">
-                            Wait: {formatDuration(ord.driver_wait_duration_seconds)}
+                          <div className="text-amber-700 dark:text-amber-400 font-semibold">
+                            Menunggu: {formatDuration(ord.driver_wait_duration_seconds)}
                           </div>
                         )}
                         {ord.packing_duration_seconds === null &&
@@ -264,15 +385,15 @@ export default function OrderManagementPage() {
                             <span className="text-[var(--text-muted)]">-</span>
                           )}
                       </td>
-                      <td className="px-6 py-4 font-mono text-[11px] text-[var(--text-muted)]">
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">
                         {formatWIB(ord.created_at)}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => openDetail(ord.id)}
-                          className="px-3.5 py-1.5 rounded-xl glass-btn text-xs font-bold text-slate-300 hover:text-white"
+                          className="px-2.5 py-1.5 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-primary)] transition-colors"
                         >
-                          View Trace →
+                          Detail →
                         </button>
                       </td>
                     </tr>
@@ -294,9 +415,10 @@ export default function OrderManagementPage() {
               </h3>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                className="text-[var(--text-muted)] hover:text-white font-bold"
+                className="text-[var(--text-muted)] hover:text-white transition-colors"
+                title="Tutup"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -403,7 +525,7 @@ export default function OrderManagementPage() {
                         disabled={createItems.length === 1}
                         className="text-slate-500 hover:text-rose-400 px-1 disabled:opacity-30"
                       >
-                        ✕
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
@@ -442,7 +564,29 @@ export default function OrderManagementPage() {
                     {selectedOrderDetail.order_number}
                   </h3>
                   <StatusBadge status={selectedOrderDetail.status} />
-                  <PriorityBadge priority={selectedOrderDetail.priority_status} />
+                  <PriorityBadge priority={selectedOrderDetail.priority_status} queueNumber={selectedOrderDetail.queue_number} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mt-1.5 font-mono text-[11px]">
+                  {selectedOrderDetail.no_wsa && (
+                    <span className="px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                      No. WSA: {selectedOrderDetail.no_wsa}
+                    </span>
+                  )}
+                  {selectedOrderDetail.picking_no && (
+                    <span className="px-2 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">
+                      Picking No: {selectedOrderDetail.picking_no}
+                    </span>
+                  )}
+                  {selectedOrderDetail.courier_type && (
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                      Agent: {selectedOrderDetail.courier_type}
+                    </span>
+                  )}
+                  {selectedOrderDetail.pickup_code && (
+                    <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                      Pickup Code: {selectedOrderDetail.pickup_code}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Recipient: <span className="text-white font-medium">{selectedOrderDetail.customer_name || 'N/A'}</span> • Fleet: {selectedOrderDetail.courier_name}
@@ -450,9 +594,9 @@ export default function OrderManagementPage() {
               </div>
               <button
                 onClick={() => setSelectedOrderDetail(null)}
-                className="text-[var(--text-muted)] hover:text-white text-base"
+                className="text-[var(--text-muted)] hover:text-white"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -494,14 +638,33 @@ export default function OrderManagementPage() {
                   {selectedOrderDetail.items?.map((it: any) => (
                     <div key={it.id} className="p-3.5 flex items-center justify-between">
                       <div>
-                        <span className="font-bold text-white">{it.product_name}</span>
-                        {it.sku && (
-                          <span className="font-mono text-[var(--text-muted)] ml-2 text-[11px]">
-                            ({it.sku})
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {it.line_no && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-slate-400">
+                              #{it.line_no}
+                            </span>
+                          )}
+                          <span className="font-bold text-white">{it.product_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 font-mono text-[11px]">
+                          {it.sku && (
+                            <span className="text-cyan-400 font-semibold">
+                              SKU: {it.sku}
+                            </span>
+                          )}
+                          {it.size && (
+                            <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                              Size: {it.size}
+                            </span>
+                          )}
+                          {it.warna && (
+                            <span className="px-1.5 py-0.2 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30 font-bold">
+                              Warna: {it.warna}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span className="font-mono font-bold text-cyan-400 px-2.5 py-0.5 rounded-lg bg-[var(--bg-primary)]">
+                      <span className="font-mono font-bold text-cyan-400 px-2.5 py-1 rounded-lg bg-[var(--bg-primary)] border border-white/10">
                         Qty: {it.quantity}
                       </span>
                     </div>

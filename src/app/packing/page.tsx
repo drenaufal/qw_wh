@@ -7,6 +7,18 @@ import { useAuth } from '@/lib/context/AuthContext';
 import { useSSE } from '@/hooks/use-sse';
 import { formatWIB, formatDuration, getElapsedSeconds } from '@/lib/utils/datetime';
 import { StatusBadge, PriorityBadge } from '@/components/ui';
+import { AutoSyncControls } from '@/components/AutoSyncControls';
+import {
+  Check,
+  Zap,
+  Clock,
+  ClipboardCheck,
+  AlertTriangle,
+  X,
+  RefreshCw,
+  Box,
+  CheckCircle2,
+} from 'lucide-react';
 
 export default function PackerStationPage() {
   const { user } = useAuth();
@@ -17,7 +29,27 @@ export default function PackerStationPage() {
   const [packingNotes, setPackingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
+  const [syncingExternal, setSyncingExternal] = useState(false);
   const [nowSec, setNowSec] = useState(0);
+
+  const handleSync = async () => {
+    setSyncingExternal(true);
+    setSyncSuccessMsg(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/orders/sync-external?type=all');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menarik data order');
+      setSyncSuccessMsg(`Berhasil sinkronisasi: ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`);
+      await fetchOrders();
+      setTimeout(() => setSyncSuccessMsg(null), 5000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Gagal menarik data order');
+    } finally {
+      setSyncingExternal(false);
+    }
+  };
 
   const { subscribe } = useSSE();
 
@@ -78,12 +110,13 @@ export default function PackerStationPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to claim order');
+        throw new Error(data.error || 'Gagal memulai proses packing');
       }
 
       await fetchOrders();
-      const claimed = orders.find((o) => o.id === orderId) || data.order;
-      openChecklist(claimed);
+      if (data.order) {
+        openChecklist(data.order);
+      }
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -93,16 +126,14 @@ export default function PackerStationPage() {
 
   const openChecklist = (order: Order) => {
     setActiveChecklistOrder(order);
-    setPackingNotes('');
-    setErrorMsg(null);
-
-    const initialChecked: Record<string, boolean> = {};
+    const initialChecks: Record<string, boolean> = {};
     if (order.items) {
       order.items.forEach((it) => {
-        initialChecked[it.id] = false;
+        initialChecks[it.id] = false;
       });
     }
-    setCheckedItems(initialChecked);
+    setCheckedItems(initialChecks);
+    setPackingNotes('');
   };
 
   const toggleItem = (itemId: string) => {
@@ -114,36 +145,28 @@ export default function PackerStationPage() {
 
   const itemsList = activeChecklistOrder?.items || [];
   const allVerified =
-    itemsList.length > 0 && itemsList.every((it) => !!checkedItems[it.id]);
+    itemsList.length > 0 && itemsList.every((it) => checkedItems[it.id]);
 
   const handleCompletePacking = async () => {
-    if (!activeChecklistOrder || !allVerified) return;
-
+    if (!activeChecklistOrder) return;
     setSubmitting(true);
     setErrorMsg(null);
     try {
       const token = localStorage.getItem('wh_auth_token');
-      const payload = {
-        notes: packingNotes.trim() || undefined,
-        items: itemsList.map((it) => ({
-          order_item_id: it.id,
-          packed_quantity: it.quantity,
-          is_verified: true,
-        })),
-      };
-
       const res = await fetch(`/api/orders/${activeChecklistOrder.id}/packing/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          notes: packingNotes.trim() || undefined,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to complete packing checklist');
+        throw new Error(data.error || 'Gagal menyelesaikan packing');
       }
 
       setActiveChecklistOrder(null);
@@ -155,7 +178,16 @@ export default function PackerStationPage() {
     }
   };
 
-  const priorityQueue = orders.filter((o) => o.priority_status === 'DRIVER_WAITING');
+  const priorityQueue = orders
+    .filter((o) => o.priority_status === 'DRIVER_WAITING')
+    .sort((a, b) => {
+      if (a.queue_number && b.queue_number) {
+        return a.queue_number - b.queue_number;
+      }
+      const tA = a.driver_arrived_at ? new Date(a.driver_arrived_at).getTime() : 0;
+      const tB = b.driver_arrived_at ? new Date(b.driver_arrived_at).getTime() : 0;
+      return tA - tB;
+    });
   const activeBench = orders.filter((o) => o.status === 'PACKING');
   const standardQueue = orders.filter(
     (o) => o.status === 'WAITING' && o.priority_status === 'NORMAL'
@@ -163,46 +195,86 @@ export default function PackerStationPage() {
 
   return (
     <StaffLayout
-      title="Packer Workstation Matrix"
-      subtitle="Antigravity spatial verification benches, priority escalation claim, and carton QA"
+      title="Meja Pengepakan (Packing Bench)"
+      subtitle="Verifikasi manifest SKU barang, proses antrian prioritas kurir, dan pengecekan kualitas kemasan"
       allowedRoles={['PACKER', 'SUPERADMIN']}
     >
-      <div className="space-y-8">
+      <div className="space-y-6">
+        {/* Action Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-xs">
+          <div className="flex items-center gap-2">
+            <Box className="w-4 h-4 text-[var(--accent-primary)]" />
+            <span className="text-xs font-semibold text-[var(--text-primary)]">
+              Antrian Pengepakan Gudang ({orders.length} order)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <AutoSyncControls onSync={handleSync} isSyncing={syncingExternal} />
+            <button
+              onClick={handleSync}
+              disabled={syncingExternal}
+              title="Tarik data terbaru dari API eksternal (Shipment & Picking)"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncingExternal ? 'animate-spin' : ''}`} />
+              <span>{syncingExternal ? 'Menarik...' : 'Tarik API'}</span>
+            </button>
+          </div>
+        </div>
+
+        {syncSuccessMsg && (
+          <div className="p-3.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>{syncSuccessMsg}</span>
+            </div>
+            <button
+              onClick={() => setSyncSuccessMsg(null)}
+              className="text-emerald-600 hover:text-emerald-800 p-0.5 rounded transition-colors"
+              title="Tutup"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {errorMsg && (
-          <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-semibold flex items-center justify-between shadow-lg">
-            <div className="flex items-center gap-2.5">
-              <span>⚠️</span>
+          <div className="p-3.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300 text-xs font-semibold flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
               <span>{errorMsg}</span>
             </div>
             <button
               onClick={() => setErrorMsg(null)}
-              className="text-rose-400 hover:text-white text-xs font-bold"
+              className="text-rose-600 hover:text-rose-800 p-0.5 rounded transition-colors"
+              title="Tutup"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
         {/* QUEUE 1: TIER 1 PRIORITY QUEUE (COURIER WAITING) */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />
-              <h2 className="text-base font-black text-amber-400 uppercase tracking-widest">
-                Tier 1 Priority: Couriers Waiting ({priorityQueue.length})
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <h2 className="text-sm font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                Prioritas Utama: Kurir Sedang Menunggu ({priorityQueue.length})
               </h2>
             </div>
-            <span className="text-xs text-amber-300 font-mono font-bold bg-amber-500/15 border border-amber-500/40 px-3.5 py-1 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-              ⚡ Action Mandatory: Process Before FIFO Backlog
+            <span className="inline-flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-300 font-semibold bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 px-2.5 py-0.5 rounded-md">
+              <Zap className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Wajib Diproses Sebelum Antrian Reguler</span>
             </span>
           </div>
 
           {priorityQueue.length === 0 ? (
-            <div className="glass-panel rounded-3xl p-6 text-center text-xs text-[var(--text-muted)]">
-              No couriers currently waiting in dock for packaging.
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 text-center text-xs text-[var(--text-muted)]">
+              Tidak ada kurir yang sedang menunggu di dock untuk pengepakan.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {priorityQueue.map((order) => {
                 const waitSec = order.driver_arrived_at
                   ? getElapsedSeconds(order.driver_arrived_at)
@@ -211,46 +283,56 @@ export default function PackerStationPage() {
                 return (
                   <div
                     key={order.id}
-                    className="glass-panel border-2 border-amber-500/70 rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-4 glow-amber-3d transform hover:translate-y-[-3px] transition-all"
+                    className="rounded-xl p-4 border-2 border-amber-400 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm flex flex-col justify-between gap-3"
                   >
-                    <div className="space-y-2.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xl font-black font-mono text-white drop-shadow">
-                          {order.order_number}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {order.queue_number && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-mono">
+                              #{order.queue_number}
+                            </span>
+                          )}
+                          <span className="text-base font-bold font-mono text-[var(--text-primary)]">
+                            {order.order_number}
+                          </span>
+                        </div>
                         <StatusBadge status={order.status} />
                       </div>
 
-                      <div className="text-xs space-y-1">
-                        <p className="text-slate-300">
-                          Recipient: <span className="font-semibold text-white">{order.customer_name || 'N/A'}</span>
+                      <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
+                        <p>
+                          Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span>
                         </p>
-                        <p className="text-amber-300 font-bold">
-                          Fleet: {order.courier_name || 'General Fleet'}
+                        <p className="font-medium text-amber-800 dark:text-amber-300">
+                          Ekspedisi: {order.courier_name || 'General Fleet'}
                         </p>
                       </div>
 
-                      {/* Wait Timer HUD */}
-                      <div className="p-3 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-between text-xs font-mono font-black text-amber-300 shadow-inner">
-                        <span>Courier Waiting:</span>
-                        <span>⏳ {formatDuration(waitSec)}</span>
+                      {/* Wait Timer */}
+                      <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 flex items-center justify-between text-xs font-mono font-semibold text-amber-800 dark:text-amber-300">
+                        <span>Kurir Menunggu:</span>
+                        <span className="flex items-center gap-1" suppressHydrationWarning>
+                          <Clock className="w-3 h-3" />
+                          <span>{formatDuration(waitSec)}</span>
+                        </span>
                       </div>
 
                       {order.items && order.items.length > 0 && (
-                        <div className="pt-2.5 border-t border-amber-500/30 text-xs text-[var(--text-secondary)]">
-                          <p className="font-bold text-white mb-1.5 uppercase text-[10px] tracking-wider">
-                            SKU Manifest ({order.items.length} items):
+                        <div className="pt-2 border-t border-amber-300/40 text-xs text-[var(--text-secondary)]">
+                          <p className="font-semibold text-[var(--text-primary)] mb-1 uppercase text-[10px] tracking-wider">
+                            Manifest Barang ({order.items.length} item):
                           </p>
-                          <ul className="space-y-1 text-[11px] text-slate-300">
+                          <ul className="space-y-1 text-xs">
                             {order.items.slice(0, 3).map((it) => (
                               <li key={it.id} className="flex justify-between truncate">
                                 <span>{it.product_name}</span>
-                                <span className="text-amber-400 font-bold ml-2">({it.quantity}x)</span>
+                                <span className="font-semibold ml-2">({it.quantity}x)</span>
                               </li>
                             ))}
                             {order.items.length > 3 && (
-                              <li className="text-[10px] text-amber-400 font-bold">
-                                + {order.items.length - 3} more items in carton...
+                              <li className="text-[11px] text-[var(--text-muted)]">
+                                + {order.items.length - 3} item lainnya...
                               </li>
                             )}
                           </ul>
@@ -258,22 +340,23 @@ export default function PackerStationPage() {
                       )}
                     </div>
 
-                    <div className="pt-2">
+                    <div className="pt-1">
                       {order.status === 'PACKING' ? (
                         <button
                           onClick={() => openChecklist(order)}
-                          className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-black text-xs shadow-lg shadow-cyan-500/30 transition-all flex items-center justify-center gap-2"
+                          className="w-full py-2.5 px-3 rounded-lg bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5"
                         >
-                          <span>Open Verification Checklist</span>
-                          <span>✓</span>
+                          <span>Buka Checklist SKU</span>
+                          <Check className="w-3.5 h-3.5" />
                         </button>
                       ) : (
                         <button
                           onClick={() => handleStartPacking(order.id)}
                           disabled={submitting}
-                          className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 disabled:opacity-50 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
+                          className="w-full py-2.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5"
                         >
-                          <span>⚡ Claim & Start Packing</span>
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>Klaim & Mulai Packing</span>
                         </button>
                       )}
                     </div>
@@ -286,24 +369,24 @@ export default function PackerStationPage() {
 
         {/* QUEUE 2: ACTIVE PACKING BENCH */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" />
-              <h2 className="text-base font-black text-cyan-400 uppercase tracking-widest">
-                Active Packing Bench ({activeBench.length})
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+              <h2 className="text-sm font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
+                Sedang Dikerjakan di Meja ({activeBench.length})
               </h2>
             </div>
             <span className="text-xs text-[var(--text-muted)]">
-              Orders currently on workstation benches
+              Pesanan yang sedang aktif diverifikasi packer
             </span>
           </div>
 
           {activeBench.length === 0 ? (
-            <div className="glass-panel rounded-3xl p-6 text-center text-xs text-[var(--text-muted)]">
-              No orders actively on the packing bench. Claim from queue below!
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 text-center text-xs text-[var(--text-muted)]">
+              Tidak ada pesanan yang sedang aktif di meja. Silakan klaim dari antrian!
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {activeBench.map((order) => {
                 const packingSec = order.packing_started_at
                   ? getElapsedSeconds(order.packing_started_at)
@@ -312,32 +395,35 @@ export default function PackerStationPage() {
                 return (
                   <div
                     key={order.id}
-                    className="glass-panel border-cyan-500/40 rounded-3xl p-6 shadow-xl flex flex-col justify-between gap-4 hover:border-cyan-400 transition-all"
+                    className="rounded-xl p-4 border border-sky-300 dark:border-sky-800 bg-[var(--bg-card)] shadow-sm flex flex-col justify-between gap-3"
                   >
-                    <div className="space-y-2.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold font-mono text-white">
+                        <span className="text-sm font-bold font-mono text-[var(--text-primary)]">
                           {order.order_number}
                         </span>
-                        <PriorityBadge priority={order.priority_status} />
+                        <PriorityBadge priority={order.priority_status} queueNumber={order.queue_number} />
                       </div>
 
-                      <p className="text-xs text-slate-300">
-                        Customer: <span className="text-white font-medium">{order.customer_name || 'N/A'}</span> • Fleet: <span className="text-cyan-400 font-bold">{order.courier_name || 'General'}</span>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span> • Ekspedisi: <span className="font-semibold text-[var(--text-primary)]">{order.courier_name || 'General'}</span>
                       </p>
 
-                      <div className="p-2.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-between text-xs font-mono text-cyan-300">
-                        <span>Packing Duration:</span>
-                        <span className="font-bold">{formatDuration(packingSec)}</span>
+                      <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-950 border border-sky-200 dark:border-sky-800 flex items-center justify-between text-xs font-mono text-sky-800 dark:text-sky-300">
+                        <span>Durasi Kemas:</span>
+                        <span className="font-semibold flex items-center gap-1" suppressHydrationWarning>
+                          <Clock className="w-3 h-3" />
+                          <span suppressHydrationWarning>{formatDuration(packingSec)}</span>
+                        </span>
                       </div>
                     </div>
 
                     <button
                       onClick={() => openChecklist(order)}
-                      className="w-full py-2.5 px-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                      className="w-full py-2.5 px-3 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
                     >
-                      <span>Open Checklist Modal</span>
-                      <span>📋</span>
+                      <ClipboardCheck className="w-3.5 h-3.5" />
+                      <span>Buka Form Verifikasi</span>
                     </button>
                   </div>
                 );
@@ -348,32 +434,32 @@ export default function PackerStationPage() {
 
         {/* QUEUE 3: STANDARD PACKAGING QUEUE */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-slate-500" />
-              <h2 className="text-base font-bold text-slate-300 uppercase tracking-widest">
-                Standard Packaging Queue ({standardQueue.length})
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+              <h2 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                Antrian Reguler ({standardQueue.length})
               </h2>
             </div>
             <span className="text-xs text-[var(--text-muted)]">
-              General FIFO backlog waiting for bench assignment
+              Antrian umum FIFO siap dipacking
             </span>
           </div>
 
           {standardQueue.length === 0 ? (
-            <div className="glass-panel rounded-3xl p-6 text-center text-xs text-[var(--text-muted)]">
-              Standard packaging backlog is clear!
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 text-center text-xs text-[var(--text-muted)]">
+              Antrian reguler saat ini kosong!
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
               {standardQueue.map((order) => (
                 <div
                   key={order.id}
-                  className="glass-panel rounded-3xl p-5 shadow-sm flex flex-col justify-between gap-3 hover:border-white/20 transition-all"
+                  className="rounded-xl p-3.5 border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xs flex flex-col justify-between gap-2.5 hover:border-[var(--border-strong)] transition-colors"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-sm text-white">
+                      <span className="font-mono font-bold text-xs text-[var(--text-primary)]">
                         {order.order_number}
                       </span>
                       <StatusBadge status={order.status} />
@@ -383,7 +469,7 @@ export default function PackerStationPage() {
                     </p>
                     {order.items && (
                       <p className="text-[11px] text-[var(--text-muted)] truncate">
-                        {order.items.length} items to verify
+                        {order.items.length} item barang
                       </p>
                     )}
                   </div>
@@ -391,9 +477,9 @@ export default function PackerStationPage() {
                   <button
                     onClick={() => handleStartPacking(order.id)}
                     disabled={submitting}
-                    className="w-full py-2.5 px-3 rounded-2xl glass-btn text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
+                    className="w-full py-2 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-primary)] transition-colors flex items-center justify-center gap-1"
                   >
-                    <span>Claim Order</span>
+                    <span>Klaim Pesanan</span>
                     <span>→</span>
                   </button>
                 </div>
@@ -403,39 +489,42 @@ export default function PackerStationPage() {
         </div>
       </div>
 
-      {/* ITEM VERIFICATION CHECKLIST MODAL (QA GATE) */}
+      {/* ITEM VERIFICATION CHECKLIST MODAL */}
       {activeChecklistOrder && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel-elevated border-cyan-500/50 rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 bg-white/[0.03] border-b border-[var(--border-subtle)] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] max-w-2xl w-full shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xl">📋</span>
-                  <h3 className="text-lg font-black text-white tracking-tight">
-                    Packer QA Verification Checklist
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="w-5 h-5 text-[var(--accent-primary)]" />
+                  <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+                    Verifikasi SKU & Kualitas Kemasan
                   </h3>
                 </div>
-                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                  Order <span className="font-mono font-bold text-amber-400">{activeChecklistOrder.order_number}</span> • Recipient: {activeChecklistOrder.customer_name}
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Order <span className="font-mono font-bold text-[var(--text-primary)]">{activeChecklistOrder.order_number}</span> • Penerima: {activeChecklistOrder.customer_name}
                 </p>
               </div>
 
               <button
                 onClick={() => setActiveChecklistOrder(null)}
-                className="text-[var(--text-muted)] hover:text-white text-base"
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-4 flex-1">
-              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-                ⚠️ <strong>Quality Gate Mandatory:</strong> Every SKU and quantity must be physically verified inside the carton box before sealing.
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Standar Kualitas:</strong> Setiap item barang dan jumlahnya harus diperiksa secara fisik sebelum kardus/plastik disegel.
+                </div>
               </div>
 
               <div className="space-y-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  SKU Checklist ({Object.values(checkedItems).filter(Boolean).length} / {itemsList.length} Checked)
+                  Daftar Barang ({Object.values(checkedItems).filter(Boolean).length} / {itemsList.length} Tercentang)
                 </p>
 
                 {itemsList.map((item) => {
@@ -444,32 +533,44 @@ export default function PackerStationPage() {
                     <label
                       key={item.id}
                       onClick={() => toggleItem(item.id)}
-                      className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                         isChecked
-                          ? 'bg-emerald-950/20 border-emerald-500/50 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-                          : 'glass-panel text-[var(--text-secondary)] hover:border-cyan-500/40'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-400 dark:border-emerald-800 text-[var(--text-primary)]'
+                          : 'bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]'
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => toggleItem(item.id)}
-                        className="mt-1 w-5 h-5 rounded-lg border-slate-600 text-emerald-500 focus:ring-0 focus:outline-none"
+                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-white">
+                          <span className="text-xs font-bold text-[var(--text-primary)]">
                             {item.product_name}
                           </span>
-                          <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-lg bg-[var(--bg-primary)] text-cyan-400 border border-[var(--border-subtle)]">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                             Qty: {item.quantity}
                           </span>
                         </div>
-                        {item.sku && (
-                          <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                            SKU: {item.sku}
-                          </p>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {item.sku && (
+                            <p className="text-[11px] text-[var(--text-muted)] font-mono">
+                              SKU: {item.sku}
+                            </p>
+                          )}
+                          {item.size && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
+                              Ukuran: {item.size}
+                            </span>
+                          )}
+                          {item.warna && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
+                              Warna: {item.warna}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </label>
                   );
@@ -477,40 +578,40 @@ export default function PackerStationPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1.5">
-                  Carton Sealing Notes & Condition (Optional)
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                  Catatan Kemasan / Kondisi Paket (Opsional)
                 </label>
                 <textarea
                   rows={2}
                   value={packingNotes}
                   onChange={(e) => setPackingNotes(e.target.value)}
-                  placeholder="e.g. Double bubble wrapped, fragile tape applied, carton box #4"
-                  className="w-full px-4 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white text-xs focus:outline-none focus:border-cyan-400"
+                  placeholder="Contoh: Bubble wrap ganda, lakban fragile, kardus ukuran #3"
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
                 />
               </div>
             </div>
 
-            <div className="p-6 bg-white/[0.03] border-t border-[var(--border-subtle)] flex items-center justify-between gap-4">
+            <div className="p-4 border-t border-[var(--border-subtle)] flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setActiveChecklistOrder(null)}
-                className="py-2.5 px-5 rounded-2xl glass-btn text-xs font-bold text-[var(--text-secondary)]"
+                className="py-2 px-3.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
               >
-                Close & Return
+                Tutup
               </button>
 
               <button
                 type="button"
                 onClick={handleCompletePacking}
                 disabled={!allVerified || submitting}
-                className="py-3 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-black text-xs shadow-xl shadow-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2 hover:scale-[1.02]"
+                className="py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
                 {submitting ? (
-                  <span>Saving Completion...</span>
+                  <span>Menyimpan...</span>
                 ) : (
                   <>
-                    <span>{allVerified ? 'Complete & Stage for Pickup' : 'Check All Items First'}</span>
-                    <span>✓</span>
+                    <span>{allVerified ? 'Selesai & Tempatkan di Rak Pickup' : 'Centang Semua SKU Dulu'}</span>
+                    <Check className="w-4 h-4" />
                   </>
                 )}
               </button>

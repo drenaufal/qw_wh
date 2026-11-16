@@ -37,6 +37,18 @@ export async function POST(
       const oldPriority = order.priority_status;
       const arrivalTime = new Date().toISOString();
 
+      // Check or assign daily sequential queue number (resets daily at 00:00 WIB)
+      let queueNumber = order.queue_number;
+      if (!queueNumber) {
+        const queueRes = await client.query(`
+          SELECT COALESCE(MAX(queue_number), 0) + 1 AS next_queue
+          FROM orders
+          WHERE driver_arrived_at IS NOT NULL
+            AND (driver_arrived_at AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date
+        `);
+        queueNumber = parseInt(queueRes.rows[0].next_queue, 10);
+      }
+
       // Check or create driver record
       let driverId = order.driver_id;
       if (driver_name) {
@@ -55,10 +67,11 @@ export async function POST(
          SET priority_status = 'DRIVER_WAITING',
              driver_id = COALESCE($1, driver_id),
              driver_arrived_at = COALESCE(driver_arrived_at, $2),
+             queue_number = COALESCE(queue_number, $3),
              updated_at = NOW()
-         WHERE id = $3
+         WHERE id = $4
          RETURNING *`,
-        [driverId, arrivalTime, id]
+        [driverId, arrivalTime, queueNumber, id]
       );
 
       // Record driver arrival log

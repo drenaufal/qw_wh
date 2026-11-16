@@ -25,7 +25,7 @@ export async function GET(
 
     // Fetch items
     const itemsRes = await query(
-      `SELECT * FROM order_items WHERE order_id = $1 ORDER BY created_at ASC`,
+      `SELECT * FROM order_items WHERE order_id = $1 ORDER BY line_no ASC NULLS LAST, created_at ASC`,
       [id]
     );
 

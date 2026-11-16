@@ -5,60 +5,99 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* 1. Operational Navy (Default) */
-:root, .theme-navy {
-  --bg-primary: #070b16;
-  --bg-secondary: rgba(14, 21, 38, 0.7);
-  --bg-card: rgba(20, 30, 55, 0.55);
-  --bg-card-hover: rgba(28, 42, 77, 0.75);
-  --border-color: rgba(99, 102, 241, 0.3);
-  --border-subtle: rgba(255, 255, 255, 0.08);
+/* 1. Clean Light Theme (Default) */
+:root, .theme-light {
+  --bg-primary: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-elevated: #ffffff;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-accent: #2563eb;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --accent-primary: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-subtle: #eff6ff;
+
+  /* Functional Status Colors */
+  --status-waiting-bg: #f1f5f9;
+  --status-waiting-text: #475569;
+  --status-waiting-border: #cbd5e1;
+
+  --status-packing-bg: #e0f2fe;
+  --status-packing-text: #0369a1;
+  --status-packing-border: #7dd3fc;
+
+  --status-ready-bg: #dcfce7;
+  --status-ready-text: #15803d;
+  --status-ready-border: #86efac;
+
+  --status-shipped-bg: #f3e8ff;
+  --status-shipped-text: #6b21a8;
+  --status-shipped-border: #d8b4fe;
+
+  --status-priority-bg: #fef3c7;
+  --status-priority-text: #92400e;
+  --status-priority-border: #fcd34d;
+
+  --status-danger-bg: #ffe4e6;
+  --status-danger-text: #9f1239;
+  --status-danger-border: #fca5a5;
+
+  --card-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  --card-shadow-hover: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+}
+
+/* 2. Solid High-Contrast Dark Theme */
+.theme-dark, .theme-navy, .theme-slate, .theme-charcoal {
+  --bg-primary: #0b1120;
+  --bg-surface: #111b2d;
+  --bg-card: #162238;
+  --bg-card-hover: #1e2e4a;
+  --bg-elevated: #162238;
+  --border-subtle: #243552;
+  --border-strong: #334b73;
+  --border-accent: #3b82f6;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
-  --accent-primary: #6366f1;
-  --accent-hover: #4f46e5;
-  --accent-light: rgba(99, 102, 241, 0.18);
-  --glow-color: rgba(99, 102, 241, 0.35);
-  --color-brand: #6366f1;
+  --accent-primary: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-subtle: rgba(59, 130, 246, 0.15);
+
+  /* Functional Status Colors */
+  --status-waiting-bg: #1e293b;
+  --status-waiting-text: #cbd5e1;
+  --status-waiting-border: #334155;
+
+  --status-packing-bg: #0c2d48;
+  --status-packing-text: #38bdf8;
+  --status-packing-border: #0284c7;
+
+  --status-ready-bg: #064e3b;
+  --status-ready-text: #4ade80;
+  --status-ready-border: #16a34a;
+
+  --status-shipped-bg: #3b0764;
+  --status-shipped-text: #c084fc;
+  --status-shipped-border: #7c3aed;
+
+  --status-priority-bg: #451a03;
+  --status-priority-text: #fcd34d;
+  --status-priority-border: #b45309;
+
+  --status-danger-bg: #4c0519;
+  --status-danger-text: #fda4af;
+  --status-danger-border: #be123c;
+
+  --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.35);
+  --card-shadow-hover: 0 4px 12px 0 rgba(0, 0, 0, 0.5);
 }
 
-/* 2. Warehouse Slate */
-.theme-slate {
-  --bg-primary: #090d14;
-  --bg-secondary: rgba(15, 23, 36, 0.7);
-  --bg-card: rgba(22, 33, 50, 0.55);
-  --bg-card-hover: rgba(30, 46, 70, 0.75);
-  --border-color: rgba(14, 165, 233, 0.3);
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-primary: #0ea5e9;
-  --accent-hover: #0284c7;
-  --accent-light: rgba(14, 165, 233, 0.18);
-  --glow-color: rgba(14, 165, 233, 0.35);
-  --color-brand: #0ea5e9;
-}
-
-/* 3. Control Room Charcoal */
-.theme-charcoal {
-  --bg-primary: #0c0d10;
-  --bg-secondary: rgba(20, 21, 26, 0.75);
-  --bg-card: rgba(28, 30, 38, 0.6);
-  --bg-card-hover: rgba(40, 43, 54, 0.8);
-  --border-color: rgba(245, 158, 11, 0.3);
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --text-primary: #f8fafc;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --accent-primary: #f59e0b;
-  --accent-hover: #d97706;
-  --accent-light: rgba(245, 158, 11, 0.18);
-  --glow-color: rgba(245, 158, 11, 0.35);
-  --color-brand: #f59e0b;
-}
-
+/* Base Body Styling — Clean & Solid, No Aurora/Orbs/Grid */
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -67,118 +106,101 @@ body {
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
-  background-image: 
-    radial-gradient(circle at 15% 15%, var(--glow-color) 0%, transparent 45%),
-    radial-gradient(circle at 85% 85%, var(--accent-light) 0%, transparent 40%),
-    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 32px 32px;
-  background-attachment: fixed;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Antigravity Glassmorphism Essentials */
-.glass-panel {
-  background: var(--bg-card);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+/* Accessible Affordances (R-39) */
+button:not(:disabled),
+a[href],
+select,
+input[type="checkbox"],
+input[type="radio"],
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Crisp Clean Panels (Anti-slop replacement for blurry glassmorphism) */
+.glass-panel,
+.solid-panel {
+  background-color: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  box-shadow: 
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -2px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 0.75rem;
+  box-shadow: var(--card-shadow);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.glass-panel:hover {
-  border-color: var(--border-color);
-  box-shadow: 
-    0 20px 35px -10px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+.glass-panel:hover,
+.solid-panel:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--card-shadow-hover);
 }
 
-.glass-panel-elevated {
-  background: var(--bg-secondary);
-  backdrop-filter: blur(24px) saturate(190%);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--border-color);
-  box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.5),
-    0 0 20px var(--glow-color),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+.glass-panel-elevated,
+.solid-panel-elevated {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  box-shadow: var(--card-shadow-hover);
 }
 
-/* Floating Weightless Animation */
-@keyframes antigravityFloat {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-6px) rotate(0.2deg);
-  }
+/* Clean Button Styles */
+.glass-btn,
+.solid-btn {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.antigravity-float {
-  animation: antigravityFloat 6s ease-in-out infinite;
+.glass-btn:hover,
+.solid-btn:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--border-strong);
 }
 
-/* Glowing Neon Borders */
-@keyframes amberLaserGlow {
-  0%, 100% {
-    box-shadow: 
-      0 0 15px rgba(245, 158, 11, 0.3),
-      inset 0 0 12px rgba(245, 158, 11, 0.15);
-    border-color: rgba(245, 158, 11, 0.6);
-  }
-  50% {
-    box-shadow: 
-      0 0 30px rgba(245, 158, 11, 0.65),
-      inset 0 0 20px rgba(245, 158, 11, 0.3);
-    border-color: rgba(245, 158, 11, 0.95);
-  }
+.glass-btn:active,
+.solid-btn:active {
+  transform: translateY(1px);
 }
 
-.glow-amber-3d {
-  animation: amberLaserGlow 2.5s infinite ease-in-out;
+/* Priority Card Subtle Indicator (Clean accent instead of laser glow) */
+.priority-card-highlight {
+  border-color: var(--status-priority-border) !important;
+  background-color: var(--status-priority-bg);
 }
 
-/* Glass Buttons */
-.glass-btn {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 
-    0 10px 20px -5px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.glass-btn:active {
-  transform: translateY(0px) scale(0.98);
-}
-
-/* Scrollbar styling */
+/* Clean Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--bg-primary);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 9999px;
-  backdrop-filter: blur(8px);
+  background: var(--border-strong);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-primary);
+  background: var(--text-muted);
 }
 
+/* Motion Respect (R-39) */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;

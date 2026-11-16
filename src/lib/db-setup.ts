@@ -25,11 +25,10 @@ try {
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:prestasi10@localhost:5432/que_wh';
 
-const pool = new Pool({
-  connectionString,
-});
-
 export async function setupDatabase() {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || connectionString,
+  });
   const client = await pool.connect();
   try {
     console.log('--- Initializing Database Tables & Indexes ---');
@@ -70,6 +69,10 @@ export async function setupDatabase() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         external_order_id VARCHAR(255) NULL,
         order_number VARCHAR(100) UNIQUE NOT NULL,
+        no_wsa VARCHAR(100) NULL,
+        picking_no VARCHAR(100) NULL,
+        courier_type VARCHAR(100) NULL,
+        pickup_code VARCHAR(100) NULL,
         customer_name VARCHAR(255) NULL,
         courier_name VARCHAR(100) NULL,
         driver_id UUID NULL REFERENCES drivers(id),
@@ -81,6 +84,7 @@ export async function setupDatabase() {
         shipped_at TIMESTAMPTZ NULL,
         driver_wait_duration_seconds INTEGER NULL,
         packing_duration_seconds INTEGER NULL,
+        queue_number INTEGER NULL,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
@@ -90,6 +94,9 @@ export async function setupDatabase() {
         order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
         external_item_id VARCHAR(255) NULL,
         sku VARCHAR(100) NULL,
+        size VARCHAR(50) NULL,
+        warna VARCHAR(255) NULL,
+        line_no INTEGER NULL,
         product_name VARCHAR(500) NOT NULL,
         quantity INTEGER NOT NULL CHECK (quantity > 0),
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -186,9 +193,32 @@ export async function setupDatabase() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_by UUID NULL REFERENCES users(id)
+      );
+
+      -- Column Migrations
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS no_wsa VARCHAR(100);
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS picking_no VARCHAR(100);
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_type VARCHAR(100);
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_code VARCHAR(100);
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS queue_number INTEGER;
+
+      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS size VARCHAR(50);
+      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS warna VARCHAR(255);
+      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS line_no INTEGER;
+
       -- Indexes
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
+      CREATE INDEX IF NOT EXISTS idx_orders_no_wsa ON orders(no_wsa);
+      CREATE INDEX IF NOT EXISTS idx_orders_picking_no ON orders(picking_no);
+      CREATE INDEX IF NOT EXISTS idx_orders_pickup_code ON orders(pickup_code);
+      CREATE INDEX IF NOT EXISTS idx_orders_queue_number ON orders(queue_number);
+      CREATE INDEX IF NOT EXISTS idx_order_items_sku ON order_items(sku);
       CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
       CREATE INDEX IF NOT EXISTS idx_orders_priority_status ON orders(priority_status);
       CREATE INDEX IF NOT EXISTS idx_orders_driver_arrived_at ON orders(driver_arrived_at);
@@ -208,6 +238,13 @@ export async function setupDatabase() {
         ('PACKER', 'Packer'),
         ('PICKUP_ADMIN', 'Pickup Admin')
       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+
+      INSERT INTO system_settings (key, value)
+      VALUES (
+        'tv_audio',
+        '{"enabled": true, "preset": "airport", "volume": 0.8, "customAudioBase64": null, "triggers": {"driverArrival": true, "packingComplete": true, "orderUpdate": true}}'::jsonb
+      )
+      ON CONFLICT (key) DO NOTHING;
     `);
 
     console.log('--- Ensuring Default Seed Users Exist ---');
@@ -267,6 +304,7 @@ export async function setupDatabase() {
           courier_name: 'Shopee Xpress',
           status: 'WAITING',
           priority_status: 'DRIVER_WAITING',
+          queue_number: 1,
           driver_arrived_at: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
           items: [
             { sku: 'SKU-CAB-04', product_name: 'Baseus 100W USB-C to Type-C Cable', quantity: 3 },
@@ -279,6 +317,7 @@ export async function setupDatabase() {
           courier_name: 'GoSend',
           status: 'READY_FOR_PICKUP',
           priority_status: 'DRIVER_WAITING',
+          queue_number: 2,
           driver_arrived_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
           packed_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
           packing_duration_seconds: 240,
@@ -304,8 +343,8 @@ export async function setupDatabase() {
         const ordRes = await client.query(`
           INSERT INTO orders (
             order_number, customer_name, courier_name, status,
-            priority_status, driver_arrived_at, packed_at, packing_duration_seconds
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            priority_status, queue_number, driver_arrived_at, packed_at, packing_duration_seconds
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           RETURNING id;
         `, [
           ord.order_number,
@@ -313,6 +352,7 @@ export async function setupDatabase() {
           ord.courier_name,
           ord.status,
           ord.priority_status,
+          (ord as any).queue_number || null,
           ord.driver_arrived_at || null,
           ord.packed_at || null,
           ord.packing_duration_seconds || null
@@ -339,7 +379,16 @@ export async function setupDatabase() {
   }
 }
 
-if (require.main === module) {
-  setupDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+const isMain = process.argv[1] && /db-setup\.(ts|js)$/.test(process.argv[1]);
+if (isMain) {
+  setupDatabase()
+    .then(() => {
+      console.log('✅ Done');
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('❌ Failed:', err);
+      process.exit(1);
+    });
 }
 

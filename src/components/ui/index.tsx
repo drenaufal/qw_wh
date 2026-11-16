@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Package } from 'lucide-react';
 import { OrderStatus, PriorityStatus } from '@/lib/types';
 import { AntigravityCard } from './AntigravityCard';
 
@@ -9,39 +10,39 @@ export { AntigravityCard };
 export function StatusBadge({ status }: { status: OrderStatus }) {
   const config: Record<OrderStatus, { label: string; className: string; dot: string }> = {
     WAITING: {
-      label: 'Waiting',
-      className: 'bg-slate-500/15 text-slate-300 border-slate-500/30 shadow-[0_0_12px_rgba(148,163,184,0.15)]',
+      label: 'Menunggu',
+      className: 'bg-[var(--status-waiting-bg)] text-[var(--status-waiting-text)] border-[var(--status-waiting-border)]',
       dot: 'bg-slate-400',
     },
     PACKING: {
-      label: 'In Packing',
-      className: 'bg-cyan-500/15 text-cyan-300 border-cyan-400/30 shadow-[0_0_14px_rgba(6,182,212,0.2)]',
-      dot: 'bg-cyan-400 animate-pulse',
+      label: 'Sedang Dipacking',
+      className: 'bg-[var(--status-packing-bg)] text-[var(--status-packing-text)] border-[var(--status-packing-border)]',
+      dot: 'bg-sky-500',
     },
     READY_FOR_PICKUP: {
-      label: 'Ready for Pickup',
-      className: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/30 shadow-[0_0_14px_rgba(16,185,129,0.2)]',
-      dot: 'bg-emerald-400 animate-ping',
+      label: 'Siap Pickup',
+      className: 'bg-[var(--status-ready-bg)] text-[var(--status-ready-text)] border-[var(--status-ready-border)] font-semibold',
+      dot: 'bg-emerald-500',
     },
     SHIP: {
-      label: 'Shipped',
-      className: 'bg-purple-500/15 text-purple-300 border-purple-400/30 shadow-[0_0_14px_rgba(168,85,247,0.2)]',
-      dot: 'bg-purple-400',
+      label: 'Telah Dikirim',
+      className: 'bg-[var(--status-shipped-bg)] text-[var(--status-shipped-text)] border-[var(--status-shipped-border)]',
+      dot: 'bg-purple-500',
     },
   };
 
   const item = config[status] || {
     label: status,
-    className: 'bg-slate-800 text-slate-300 border-slate-700',
+    className: 'bg-[var(--status-waiting-bg)] text-[var(--status-waiting-text)] border-[var(--status-waiting-border)]',
     dot: 'bg-slate-400',
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase border backdrop-blur-md ${item.className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium border ${item.className}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
-      {item.label}
+      <span className={`w-2 h-2 rounded-full ${item.dot}`} />
+      <span>{item.label}</span>
     </span>
   );
 }
@@ -49,16 +50,24 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
 export function PriorityBadge({
   priority,
   showLabel = true,
+  queueNumber,
 }: {
   priority: PriorityStatus;
   showLabel?: boolean;
+  queueNumber?: number | null;
 }) {
   if (priority === 'NORMAL') return null;
 
   return (
-    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-500/15 text-amber-300 border border-amber-400/50 backdrop-blur-md shadow-[0_0_20px_rgba(245,158,11,0.35)] glow-amber-3d">
-      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-      {showLabel ? 'Courier Waiting' : 'Waiting'}
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-[var(--status-priority-bg)] text-[var(--status-priority-text)] border border-[var(--status-priority-border)]">
+      <span className="w-2 h-2 rounded-full bg-amber-500" />
+      <span>
+        {queueNumber
+          ? `Antrean #${queueNumber}`
+          : showLabel
+          ? 'Kurir Menunggu di Loket'
+          : 'Prioritas'}
+      </span>
     </span>
   );
 }
@@ -76,98 +85,46 @@ export function StatCard({
   subtext?: string;
   color?: 'indigo' | 'emerald' | 'amber' | 'cyan' | 'purple' | 'slate';
 }) {
-  const colorMap = {
-    indigo: {
-      glow: 'rgba(99, 102, 241, 0.25)',
-      border: 'border-indigo-500/30 hover:border-indigo-400/60',
-      iconBg: 'bg-indigo-500/15 border-indigo-400/30 text-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.3)]',
-    },
-    emerald: {
-      glow: 'rgba(16, 185, 129, 0.25)',
-      border: 'border-emerald-500/30 hover:border-emerald-400/60',
-      iconBg: 'bg-emerald-500/15 border-emerald-400/30 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]',
-    },
-    amber: {
-      glow: 'rgba(245, 158, 11, 0.25)',
-      border: 'border-amber-500/30 hover:border-amber-400/60',
-      iconBg: 'bg-amber-500/15 border-amber-400/30 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.3)]',
-    },
-    cyan: {
-      glow: 'rgba(6, 182, 212, 0.25)',
-      border: 'border-cyan-500/30 hover:border-cyan-400/60',
-      iconBg: 'bg-cyan-500/15 border-cyan-400/30 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]',
-    },
-    purple: {
-      glow: 'rgba(168, 85, 247, 0.25)',
-      border: 'border-purple-500/30 hover:border-purple-400/60',
-      iconBg: 'bg-purple-500/15 border-purple-400/30 text-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.3)]',
-    },
-    slate: {
-      glow: 'rgba(148, 163, 184, 0.15)',
-      border: 'border-slate-700/50 hover:border-slate-500/60',
-      iconBg: 'bg-slate-800/50 border-slate-600/30 text-slate-400',
-    },
-  };
-
-  const themeConfig = colorMap[color];
-
   return (
-    <AntigravityCard
-      glowColor={themeConfig.glow}
-      className={`glass-panel p-5 ${themeConfig.border} flex flex-col justify-between`}
-    >
-      <div className="flex items-start justify-between">
+    <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm hover:border-[var(--border-strong)] transition-all flex flex-col justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             {label}
           </p>
-          <p className="text-3xl font-black mt-1.5 text-white tracking-tight drop-shadow-md">
+          <p className="text-2xl font-bold mt-1 text-[var(--text-primary)] tracking-tight">
             {value}
           </p>
           {subtext && (
-            <p className="text-xs text-[var(--text-secondary)] mt-1">{subtext}</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">{subtext}</p>
           )}
         </div>
-        <div
-          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl border backdrop-blur-xl ${themeConfig.iconBg}`}
-        >
+        <div className="w-10 h-10 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-lg text-[var(--text-secondary)] shrink-0">
           {icon}
         </div>
       </div>
-    </AntigravityCard>
+    </div>
   );
 }
 
 export function SSEStatusBeacon({ isConnected }: { isConnected: boolean }) {
   return (
-    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider glass-panel border border-[var(--border-subtle)] backdrop-blur-xl">
-      <span className="relative flex h-2.5 w-2.5">
-        <span
-          className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-            isConnected ? 'bg-emerald-400' : 'bg-rose-500'
-          }`}
-        />
-        <span
-          className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-            isConnected ? 'bg-emerald-500' : 'bg-rose-500'
-          }`}
-        />
-      </span>
-      <span className={isConnected ? 'text-emerald-300' : 'text-rose-400'}>
-        {isConnected ? 'LIVE SYNC' : 'OFFLINE'}
-      </span>
+    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-semibold border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)]">
+      <span
+        className={`w-2 h-2 rounded-full ${
+          isConnected ? 'bg-emerald-500' : 'bg-rose-500'
+        }`}
+      />
+      <span>{isConnected ? 'Real-time Aktif' : 'Offline'}</span>
     </div>
   );
 }
 
 export function LoadingSpinner({ text }: { text?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center p-12 gap-4 text-[var(--text-secondary)]">
-      <div className="relative w-12 h-12">
-        <div className="absolute inset-0 rounded-full border-2 border-[var(--accent-primary)]/20" />
-        <div className="absolute inset-0 rounded-full border-2 border-t-[var(--accent-primary)] border-transparent animate-spin" />
-      </div>
-      {text && <span className="text-xs font-semibold tracking-wider uppercase">{text}</span>}
+    <div className="flex flex-col items-center justify-center p-8 gap-3 text-[var(--text-secondary)]">
+      <div className="w-8 h-8 rounded-full border-2 border-[var(--border-subtle)] border-t-[var(--accent-primary)] animate-spin" />
+      {text && <span className="text-xs font-medium text-[var(--text-muted)]">{text}</span>}
     </div>
   );
 }
@@ -175,21 +132,21 @@ export function LoadingSpinner({ text }: { text?: string }) {
 export function EmptyState({
   title,
   message,
-  icon = '📦',
+  icon,
   action,
 }: {
   title?: string;
   message: string;
-  icon?: string;
+  icon?: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)] backdrop-blur-xl">
-      <div className="w-16 h-16 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center text-3xl mb-3 shadow-lg">
-        {icon}
+    <div className="flex flex-col items-center justify-center p-8 text-center rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]">
+      <div className="w-12 h-12 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center mb-2 text-[var(--text-secondary)]">
+        {icon || <Package className="w-6 h-6 text-[var(--text-muted)]" />}
       </div>
-      {title && <h4 className="text-base font-bold text-white mb-1 tracking-tight">{title}</h4>}
-      <p className="text-xs text-[var(--text-secondary)] max-w-sm mb-4 leading-relaxed">{message}</p>
+      {title && <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-1">{title}</h4>}
+      <p className="text-xs text-[var(--text-muted)] max-w-sm mb-3 leading-relaxed">{message}</p>
       {action}
     </div>
   );

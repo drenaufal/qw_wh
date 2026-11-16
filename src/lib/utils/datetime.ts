@@ -7,7 +7,7 @@ export function formatWIB(dateStrOrObj?: string | Date | null): string {
   const date = typeof dateStrOrObj === 'string' ? new Date(dateStrOrObj) : dateStrOrObj;
   if (isNaN(date.getTime())) return '-';
 
-  return new Intl.DateTimeFormat('id-ID', {
+  const formatted = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: '2-digit',
@@ -16,7 +16,10 @@ export function formatWIB(dateStrOrObj?: string | Date | null): string {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
-  }).format(date) + ' WIB';
+  }).format(date);
+
+  // Standardize time separator from dot to colon (e.g. 15.30.00 -> 15:30:00)
+  return formatted.replace(/(\d{2})\.(\d{2})\.(\d{2})/, '$1:$2:$3') + ' WIB';
 }
 
 export function formatWIBTimeOnly(dateStrOrObj?: string | Date | null): string {

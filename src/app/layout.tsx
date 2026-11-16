@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
-  title: 'Warehouse Packing & Courier Pickup Monitoring System',
-  description: 'Real-time multi-display warehouse queue and pickup tracking system',
+  title: 'Warehouse Order Queue & Dispatch Monitoring System',
+  description: 'Sistem monitoring antrian pesanan, meja packing, dan pickup kurir gudang terpadu',
 };
 
 export default function RootLayout({
@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full">
-      <body className="min-h-full flex flex-col antialiased bg-[#0a0f1d] text-white">
+    <html lang="id" className="h-full" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col antialiased bg-[var(--bg-primary)] text-[var(--text-primary)]" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

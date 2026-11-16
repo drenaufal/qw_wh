@@ -8,6 +8,7 @@ import { UserRole } from '@/lib/types';
 import { LoadingSpinner, SSEStatusBeacon } from './ui';
 import { useSSE } from '@/lib/hooks/useSSE';
 import { formatWIB } from '@/lib/utils/datetime';
+import { ShieldAlert, Clock } from 'lucide-react';
 
 interface StaffLayoutProps {
   children: React.ReactNode;
@@ -47,7 +48,7 @@ export function StaffLayout({
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
-        <LoadingSpinner text="Connecting to Antigravity Relay..." />
+        <LoadingSpinner text="Memuat data operasional..." />
       </div>
     );
   }
@@ -63,21 +64,21 @@ export function StaffLayout({
     !allowedRoles.includes(user.role_code)
   ) {
     return (
-      <div className="flex min-h-screen bg-[var(--bg-primary)]">
+      <div className="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
         <Sidebar />
-        <main className="flex-1 p-8 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/40 flex items-center justify-center text-3xl mb-4 shadow-[0_0_30px_rgba(244,63,94,0.3)]">
-            ⛔
+        <main className="flex-1 p-6 flex flex-col items-center justify-center text-center">
+          <div className="w-14 h-14 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 border border-rose-200 dark:border-rose-900 flex items-center justify-center mb-4">
+            <ShieldAlert className="w-7 h-7" />
           </div>
-          <h2 className="text-xl font-extrabold text-white mb-2 tracking-tight">Access Restricted</h2>
-          <p className="text-xs text-[var(--text-secondary)] max-w-md mb-6 leading-relaxed">
-            Your role (<span className="text-amber-400 font-mono font-bold">{user.role_code}</span>) is not permitted to access this workstation module.
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">Akses Dibatasi</h2>
+          <p className="text-xs text-[var(--text-secondary)] max-w-md mb-5 leading-relaxed">
+            Peran akun Anda (<span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{user.role_code}</span>) tidak memiliki izin untuk modul ini.
           </p>
           <button
             onClick={() => router.push('/dashboard')}
-            className="px-5 py-2.5 bg-gradient-to-r from-[var(--accent-primary)] to-indigo-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all hover:scale-105"
+            className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
           >
-            Return to Dashboard
+            Kembali ke Dashboard
           </button>
         </main>
       </div>
@@ -85,36 +86,36 @@ export function StaffLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] relative overflow-hidden">
-      {/* Ambient background light orbs for spatial depth */}
-      <div className="pointer-events-none fixed top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[var(--accent-light)] blur-[120px] opacity-40 -z-10" />
-      <div className="pointer-events-none fixed bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-[var(--glow-color)] blur-[140px] opacity-30 -z-10" />
-
+    <div className="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Operational Bar */}
-        <header className="h-16 bg-[var(--bg-secondary)] backdrop-blur-2xl border-b border-[var(--border-subtle)] px-8 flex items-center justify-between sticky top-0 z-30 shadow-md">
-          <div>
-            <h1 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>{title}</span>
-            </h1>
-            {subtitle && <p className="text-[11px] text-[var(--text-muted)]">{subtitle}</p>}
+        {/* Top Operational Command Bar */}
+        <header className="h-14 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] px-6 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-[var(--text-primary)] leading-tight">
+                {title}
+              </h1>
+              {subtitle && (
+                <p className="text-[11px] text-[var(--text-muted)] font-normal">{subtitle}</p>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2 font-mono text-xs text-slate-300 glass-panel px-3.5 py-1.5 rounded-xl border border-[var(--border-subtle)]">
-              <span className="text-[var(--accent-primary)]">🕒</span>
-              <span>{currentClock}</span>
+          <div className="flex items-center gap-3">
+            {actions}
+            <div className="text-xs font-mono font-medium text-[var(--text-secondary)] hidden md:flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+              <span>{currentClock || 'WIB'}</span>
             </div>
-
             <SSEStatusBeacon isConnected={isConnected} />
-
-            {actions && <div className="flex items-center gap-2">{actions}</div>}
           </div>
         </header>
 
-        {/* Workspace Body */}
-        <main className="flex-1 p-8 overflow-y-auto">{children}</main>
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+          {children}
+        </main>
       </div>
     </div>
   );
