@@ -41,7 +41,17 @@ export default function PackerStationPage() {
       const res = await fetch('/api/orders/sync-external?type=all');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal menarik data order');
-      setSyncSuccessMsg(`Berhasil sinkronisasi: ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`);
+      let msg = data.message || `Berhasil sinkronisasi: ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`;
+      if (data.shipment && data.picking) {
+        msg = `Berhasil sync ${data.count} order (${data.picking.count} Sedang Packing, ${data.shipment.count} Siap Diambil)!`;
+        if (data.picking?.error) {
+          msg += ` [Picking: ${data.picking.error}]`;
+        }
+        if (data.shipment?.error) {
+          msg += ` [Shipment: ${data.shipment.error}]`;
+        }
+      }
+      setSyncSuccessMsg(msg);
       await fetchOrders();
       setTimeout(() => setSyncSuccessMsg(null), 5000);
     } catch (err: any) {

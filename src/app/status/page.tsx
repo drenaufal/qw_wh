@@ -47,10 +47,18 @@ export default function OverheadTVStatusPage() {
     customAudioName: null,
     triggers: {
       driverArrival: true,
-      packingComplete: true,
-      orderUpdate: true,
+      packingComplete: false,
+      orderUpdate: false,
     },
   });
+
+  const tvAudioSettingsRef = useRef<TVAudioSettings>(tvAudioSettings);
+  tvAudioSettingsRef.current = tvAudioSettings;
+
+  const soundEnabledRef = useRef(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
+
+  const lastSoundPlayedRef = useRef<number>(0);
 
   // Column visibility state with localStorage persistence
   const [visibleColumns, setVisibleColumns] = useState<{
@@ -117,7 +125,9 @@ export default function OverheadTVStatusPage() {
       .then((data) => {
         if (data.settings) {
           setTvAudioSettings(data.settings);
+          tvAudioSettingsRef.current = data.settings;
           setSoundEnabled(data.settings.enabled);
+          soundEnabledRef.current = data.settings.enabled;
         }
       })
       .catch((err) => console.warn('Failed to load initial TV audio settings:', err));
@@ -125,12 +135,23 @@ export default function OverheadTVStatusPage() {
 
   // Trigger notification sound based on configured preset, volume, and event trigger
   const triggerNotificationSound = useCallback(
-    (eventType: 'driverArrival' | 'packingComplete' | 'orderUpdate') => {
-      if (!soundEnabled || !tvAudioSettings.enabled) return;
-      if (!tvAudioSettings.triggers[eventType]) return;
-      playNotificationSound(tvAudioSettings);
+    (eventType: 'driverArrival' | 'packingComplete' | 'orderUpdate', force = false) => {
+      const currentSettings = tvAudioSettingsRef.current;
+      const currentSoundEnabled = soundEnabledRef.current;
+
+      if (!currentSoundEnabled || !currentSettings.enabled) return;
+      if (!currentSettings.triggers[eventType]) return;
+
+      const now = Date.now();
+      // Cooldown 3.5 detik untuk mencegah spam audio berulang saat order update beruntun
+      if (!force && now - lastSoundPlayedRef.current < 3500) {
+        return;
+      }
+
+      lastSoundPlayedRef.current = now;
+      playNotificationSound(currentSettings);
     },
-    [soundEnabled, tvAudioSettings]
+    []
   );
 
   const fetchOrders = useCallback(async () => {
@@ -167,30 +188,48 @@ export default function OverheadTVStatusPage() {
     const unsubAudio = subscribe('tvAudioSettingsUpdate', (updated: TVAudioSettings) => {
       if (updated) {
         setTvAudioSettings(updated);
+        tvAudioSettingsRef.current = updated;
         setSoundEnabled(updated.enabled);
+        soundEnabledRef.current = updated.enabled;
       }
     });
 
-    const handleDriverArrival = () => {
+    const handleDriverArrival = (order: any) => {
       fetchOrders();
       triggerNotificationSound('driverArrival');
     };
 
-    const handlePackingComplete = () => {
+    const handlePackingComplete = (order: any) => {
       fetchOrders();
       triggerNotificationSound('packingComplete');
     };
 
-    const handleGeneralUpdate = () => {
+    const handleGeneralUpdate = (order: any) => {
       fetchOrders();
-      triggerNotificationSound('orderUpdate');
+      // Jika order memiliki status Kurir Menunggu, bunyikan trigger driverArrival
+      if (order?.priority_status === 'DRIVER_WAITING') {
+        triggerNotificationSound('driverArrival');
+      } else {
+        // Pembaruan order reguler hanya memicu suara jika orderUpdate diaktifkan di pengaturan
+        triggerNotificationSound('orderUpdate');
+      }
     };
 
     const unsubUpdate = subscribe('orderUpdate', handleGeneralUpdate);
     const unsubArrival = subscribe('driverArrival', handleDriverArrival);
-    const unsubPacking = subscribe('packingStart', handleGeneralUpdate);
+    const unsubPacking = subscribe('packingStart', (order: any) => {
+      fetchOrders();
+      if (order?.priority_status === 'DRIVER_WAITING') {
+        triggerNotificationSound('driverArrival');
+      } else {
+        triggerNotificationSound('orderUpdate');
+      }
+    });
     const unsubComplete = subscribe('packingComplete', handlePackingComplete);
-    const unsubShipped = subscribe('pickupShipped', handleGeneralUpdate);
+    const unsubShipped = subscribe('pickupShipped', () => {
+      fetchOrders();
+      triggerNotificationSound('orderUpdate');
+    });
 
     return () => {
       unsubAudio();

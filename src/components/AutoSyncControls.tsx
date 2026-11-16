@@ -10,8 +10,8 @@ interface AutoSyncControlsProps {
 }
 
 const INTERVAL_OPTIONS = [
-  { label: '30s', value: 30 },
-  { label: '1m', value: 60 },
+  // { label: '30s', value: 30 },
+  // { label: '1m', value: 60 },
   { label: '2m', value: 120 },
   { label: '5m', value: 300 },
 ];
@@ -22,8 +22,10 @@ export function AutoSyncControls({
   className = '',
 }: AutoSyncControlsProps) {
   const [enabled, setEnabled] = useState(false);
-  const [intervalSec, setIntervalSec] = useState(60);
-  const [secondsRemaining, setSecondsRemaining] = useState(60);
+  // const [intervalSec, setIntervalSec] = useState(60);
+  // const [secondsRemaining, setSecondsRemaining] = useState(60);
+  const [intervalSec, setIntervalSec] = useState(120);
+  const [secondsRemaining, setSecondsRemaining] = useState(120);
   const [mounted, setMounted] = useState(false);
 
   // Load preferences from localStorage on mount
@@ -37,7 +39,8 @@ export function AutoSyncControls({
       const savedInterval = localStorage.getItem('wh_auto_sync_interval');
       if (savedInterval) {
         const val = parseInt(savedInterval, 10);
-        if ([30, 60, 120, 300].includes(val)) {
+        // if ([30, 60, 120, 300].includes(val)) {
+        if ([120, 300].includes(val)) {
           setIntervalSec(val);
           setSecondsRemaining(val);
         }

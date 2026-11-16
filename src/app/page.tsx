@@ -245,9 +245,15 @@ export default function CourierKioskPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal menarik data order dari external API');
 
-      let detailText = `Berhasil sinkronisasi total ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`;
+      let detailText = data.message || `Berhasil sinkronisasi total ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`;
       if (data.shipment && data.picking) {
         detailText = `Berhasil sync ${data.count} order (${data.shipment.count} Siap Diambil, ${data.picking.count} Sedang Packing)!`;
+        if (data.picking?.error) {
+          detailText += ` [Picking: ${data.picking.error}]`;
+        }
+        if (data.shipment?.error) {
+          detailText += ` [Shipment: ${data.shipment.error}]`;
+        }
       }
 
       setSyncNotification({
