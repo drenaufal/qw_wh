@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 
 type WizardStage = 'SELECT_ORDER' | 'DRIVER_INFO' | 'CAMERA' | 'REVIEW' | 'SUCCESS';
-type CategoryTab = 'ALL' | 'ARRIVED' | 'READY';
+type CategoryTab = 'ALL' | 'ARRIVED' | 'READY' | 'PACKING';
 
 const COURIER_OPTIONS = [
   'J&T Express',
@@ -53,6 +53,7 @@ export default function CourierKioskPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Driver details cached in localStorage
   const [driverName, setDriverName] = useState('');
@@ -112,9 +113,15 @@ export default function CourierKioskPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (stage === 'SELECT_ORDER') {
+      searchInputRef.current?.focus();
+    }
+  }, [stage]);
+
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch('/api/orders?limit=100');
+      const res = await fetch('/api/orders?limit=200');
       if (res.ok) {
         const data = await res.json();
         setOrders(data.orders || []);
@@ -383,21 +390,26 @@ export default function CourierKioskPage() {
     setSuccessReceipt(null);
     setErrorMessage(null);
     setStage('SELECT_ORDER');
+    setSearchQuery('');
+    setCategoryTab('ALL');
     fetchOrders();
   };
 
-  const filteredOrders = orders.filter((o) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      o.order_number.toLowerCase().includes(q) ||
-      (o.no_wsa && o.no_wsa.toLowerCase().includes(q)) ||
-      (o.pickup_code && o.pickup_code.toLowerCase().includes(q)) ||
-      (o.picking_no && o.picking_no.toLowerCase().includes(q)) ||
-      (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
-      (o.courier_name && o.courier_name.toLowerCase().includes(q))
-    );
-  });
+  const isSearching = searchQuery.trim().length > 0;
+
+  const filteredOrders = isSearching
+    ? orders.filter((o) => {
+        const q = searchQuery.toLowerCase().trim();
+        return (
+          o.order_number.toLowerCase().includes(q) ||
+          (o.no_wsa && o.no_wsa.toLowerCase().includes(q)) ||
+          (o.pickup_code && o.pickup_code.toLowerCase().includes(q)) ||
+          (o.picking_no && o.picking_no.toLowerCase().includes(q)) ||
+          (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
+          (o.courier_name && o.courier_name.toLowerCase().includes(q))
+        );
+      })
+    : [];
 
   // Category 1: Orders where courier has arrived (Priority Waiting Queue, not yet shipped)
   const arrivedOrders = filteredOrders
@@ -415,6 +427,14 @@ export default function CourierKioskPage() {
   const readyOrders = filteredOrders.filter(
     (o) => o.status === 'READY_FOR_PICKUP' && o.priority_status !== 'DRIVER_WAITING'
   );
+
+  // Category 3: Orders still being packed where courier has not yet checked in
+  const packingOrders = filteredOrders.filter(
+    (o) => o.status === 'PACKING' && o.priority_status !== 'DRIVER_WAITING'
+  );
+
+  // Category 4: Orders that have already been shipped / handed over
+  const shippedOrders = filteredOrders.filter((o) => o.status === 'SHIP');
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col justify-between">
@@ -522,15 +542,22 @@ export default function CourierKioskPage() {
                   <div className="relative flex-1">
                     <Search className="absolute left-3.5 top-3 w-4 h-4 text-[var(--text-muted)]" />
                     <input
+                      ref={searchInputRef}
                       type="text"
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCategoryTab('ALL');
+                      }}
                       placeholder="Cari No. Order, WSA, PIN Pickup, Penerima, atau Ekspedisi..."
                       className="w-full pl-10 pr-16 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs sm:text-sm font-medium focus:outline-none focus:border-[var(--accent-primary)] placeholder:text-[var(--text-muted)]"
                     />
                     {searchQuery && (
                       <button
-                        onClick={() => setSearchQuery('')}
+                        onClick={() => {
+                          setSearchQuery('');
+                          searchInputRef.current?.focus();
+                        }}
                         className="absolute right-3 top-3 text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                       >
                         RESET
@@ -549,106 +576,306 @@ export default function CourierKioskPage() {
                   </button>
                 </div>
               </div>
-              {/* Category Tab Filter Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                <button
-                  type="button"
-                  onClick={() => setCategoryTab('ALL')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                    categoryTab === 'ALL'
-                      ? 'bg-[var(--accent-primary)] text-white shadow-sm'
-                      : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-card-hover)]'
-                  }`}
-                >
-                  <span>Semua Kategori</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/20 text-current font-mono font-semibold">
-                    {arrivedOrders.length + readyOrders.length}
-                  </span>
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => setCategoryTab('ARRIVED')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                    categoryTab === 'ARRIVED'
-                      ? 'bg-amber-500 text-slate-950 shadow-sm'
-                      : 'bg-[var(--bg-surface)] text-amber-700 dark:text-amber-400 border border-amber-300/40 dark:border-amber-800/40 hover:bg-amber-500/10'
-                  }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Kurir Sudah Tiba</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
-                      categoryTab === 'ARRIVED'
-                        ? 'bg-black/25 text-slate-950'
-                        : 'bg-amber-500/20 text-amber-800 dark:text-amber-300'
-                    }`}
-                  >
-                    {arrivedOrders.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCategoryTab('READY')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                    categoryTab === 'READY'
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-[var(--bg-surface)] text-emerald-700 dark:text-emerald-400 border border-emerald-300/40 dark:border-emerald-800/40 hover:bg-emerald-500/10'
-                  }`}
-                >
-                  <PackageCheck className="w-3.5 h-3.5" />
-                  <span>Siap Diambil di Rak</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
-                      categoryTab === 'READY'
-                        ? 'bg-black/20 text-white'
-                        : 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300'
-                    }`}
-                  >
-                    {readyOrders.length}
-                  </span>
-                </button>
-              </div>
-
-              {/* CATEGORY 1: KURIR SUDAH TIBA (ANTREAN LOKET) */}
-              {(categoryTab === 'ALL' || categoryTab === 'ARRIVED') && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                      <h2 className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                        <UserCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                        <span>Kurir Sudah Tiba ({arrivedOrders.length})</span>
-                      </h2>
-                    </div>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      Antrean kurir yang sedang menunggu serah terima di loket
-                    </span>
+              {!isSearching ? (
+                /* HERO / INITIAL SEARCH GUIDE (Ketika belum dicari) */
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 sm:p-10 text-center space-y-6 shadow-sm">
+                  <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-inner">
+                    <Search className="w-8 h-8" />
                   </div>
 
-                  {arrivedOrders.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-amber-300/50 dark:border-amber-800/50 bg-amber-50/20 dark:bg-amber-950/10 p-5 text-center text-xs text-[var(--text-muted)]">
-                      Belum ada kurir yang mengonfirmasi kedatangan. Jika Anda sudah berada di gudang, cari order Anda lalu tekan tombol <strong className="text-amber-700 dark:text-amber-400">&quot;Saya Sudah Tiba&quot;</strong>.
+                  <div className="max-w-md mx-auto space-y-2">
+                    <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)]">
+                      Cari Order untuk Memulai Serah Terima
+                    </h2>
+                    <p className="text-xs sm:text-sm text-[var(--text-muted)] leading-relaxed">
+                      Silakan ketik atau scan barcode <strong className="text-[var(--text-secondary)]">Nomor Order</strong>, <strong className="text-[var(--text-secondary)]">No. WSA</strong>, <strong className="text-[var(--text-secondary)]">PIN Pickup</strong>, atau <strong className="text-[var(--text-secondary)]">Nama Penerima</strong> pada kolom pencarian di atas.
+                    </p>
+                  </div>
+
+                  {/* 3 Langkah Cepat Kiosk */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-left">
+                    <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-[var(--accent-primary)]">
+                        <span className="w-5 h-5 rounded-full bg-[var(--accent-primary)]/15 flex items-center justify-center text-[11px] font-mono font-bold">1</span>
+                        <span>Cari Paket</span>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] leading-normal">
+                        Ketik nomor order atau scan barcode dari surat jalan / aplikasi kurir Anda.
+                      </p>
                     </div>
-                  ) : (
-                    <div className="grid gap-3">
-                      {arrivedOrders.map((order, idx) => {
-                        const isReadyForPickup = order.status === 'READY_FOR_PICKUP';
-                        return (
+
+                    <div className="p-3.5 rounded-xl border border-amber-300/40 dark:border-amber-800/40 bg-amber-500/5 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+                        <span className="w-5 h-5 rounded-full bg-amber-500/20 flex items-center justify-center text-[11px] font-mono font-bold">2</span>
+                        <span>Lapor Kedatangan</span>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] leading-normal">
+                        Tekan <strong className="text-amber-700 dark:text-amber-400">&quot;Saya Sudah Tiba&quot;</strong> jika paket sedang dipersiapkan di meja staf packing.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl border border-emerald-300/40 dark:border-emerald-800/40 bg-emerald-500/5 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-[11px] font-mono font-bold">3</span>
+                        <span>Ambil Paket</span>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] leading-normal">
+                        Tekan <strong className="text-emerald-700 dark:text-emerald-400">&quot;Ambil Paket&quot;</strong> untuk konfirmasi data dan foto bukti serah terima paket.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : filteredOrders.length === 0 ? (
+                /* EMPTY STATE: ORDER TIDAK DITEMUKAN */
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-4 shadow-sm">
+                  <div className="mx-auto w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                    <Package className="w-7 h-7" />
+                  </div>
+                  <div className="max-w-md mx-auto space-y-1.5">
+                    <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+                      Order Tidak Ditemukan
+                    </h3>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Tidak ditemukan pesanan yang cocok dengan kata kunci <span className="font-mono font-bold text-[var(--text-primary)]">&quot;{searchQuery}&quot;</span>.
+                    </p>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      Pastikan ejaan nomor resi/order benar, atau tekan tombol &quot;Tarik Order dari API&quot; jika order baru saja diterbitkan di ERP.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        searchInputRef.current?.focus();
+                      }}
+                      className="px-4 py-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-colors"
+                    >
+                      Reset Pencarian
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSyncExternal}
+                      disabled={syncingExternal}
+                      className="px-4 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncingExternal ? 'animate-spin' : ''}`} />
+                      <span>{syncingExternal ? 'Menarik...' : 'Tarik Order dari API'}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* SEARCH RESULTS (Ketika sedang dicari dan ditemukan) */
+                <div className="space-y-6">
+                  {/* Results Header Info */}
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs text-[var(--text-muted)] font-medium">
+                      Ditemukan <strong className="text-[var(--text-primary)]">{filteredOrders.length}</strong> pesanan yang cocok untuk <span className="font-mono font-bold text-[var(--text-primary)]">&quot;{searchQuery}&quot;</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        searchInputRef.current?.focus();
+                      }}
+                      className="text-xs text-[var(--accent-primary)] hover:underline font-semibold"
+                    >
+                      Hapus Pencarian
+                    </button>
+                  </div>
+
+                  {/* Category Tab Filter Pills */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setCategoryTab('ALL')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        categoryTab === 'ALL'
+                          ? 'bg-[var(--accent-primary)] text-white shadow-sm'
+                          : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-card-hover)]'
+                      }`}
+                    >
+                      <span>Semua Hasil</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/20 text-current font-mono font-semibold">
+                        {filteredOrders.length}
+                      </span>
+                    </button>
+
+                    {arrivedOrders.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCategoryTab('ARRIVED')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                          categoryTab === 'ARRIVED'
+                            ? 'bg-amber-500 text-slate-950 shadow-sm'
+                            : 'bg-[var(--bg-surface)] text-amber-700 dark:text-amber-400 border border-amber-300/40 dark:border-amber-800/40 hover:bg-amber-500/10'
+                        }`}
+                      >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>Kurir Sudah Tiba</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold bg-black/20 text-current">
+                          {arrivedOrders.length}
+                        </span>
+                      </button>
+                    )}
+
+                    {readyOrders.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCategoryTab('READY')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                          categoryTab === 'READY'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-[var(--bg-surface)] text-emerald-700 dark:text-emerald-400 border border-emerald-300/40 dark:border-emerald-800/40 hover:bg-emerald-500/10'
+                        }`}
+                      >
+                        <PackageCheck className="w-3.5 h-3.5" />
+                        <span>Siap Diambil di Rak</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold bg-black/20 text-current">
+                          {readyOrders.length}
+                        </span>
+                      </button>
+                    )}
+
+                    {packingOrders.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCategoryTab('PACKING')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                          categoryTab === 'PACKING'
+                            ? 'bg-sky-600 text-white shadow-sm'
+                            : 'bg-[var(--bg-surface)] text-sky-700 dark:text-sky-400 border border-sky-300/40 dark:border-sky-800/40 hover:bg-sky-500/10'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Sedang Packing</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold bg-black/20 text-current">
+                          {packingOrders.length}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* CATEGORY 1: KURIR SUDAH TIBA (ANTREAN LOKET) */}
+                  {(categoryTab === 'ALL' || categoryTab === 'ARRIVED') && arrivedOrders.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                          <h2 className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <UserCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                            <span>Kurir Sudah Tiba ({arrivedOrders.length})</span>
+                          </h2>
+                        </div>
+                        <span className="text-xs text-[var(--text-muted)]">
+                          Antrean kurir yang sedang menunggu serah terima di loket
+                        </span>
+                      </div>
+
+                      <div className="grid gap-3">
+                        {arrivedOrders.map((order, idx) => {
+                          const isReadyForPickup = order.status === 'READY_FOR_PICKUP';
+                          return (
+                            <div
+                              key={order.id}
+                              className="rounded-xl p-4 sm:p-5 border-2 border-amber-400 dark:border-amber-600/70 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all"
+                            >
+                              <div className="space-y-1.5 flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950 shadow-xs">
+                                    ANTREAN #{order.queue_number ?? (idx + 1)}
+                                  </span>
+                                  <span className="text-base sm:text-lg font-bold font-mono text-[var(--text-primary)]">
+                                    {order.order_number}
+                                  </span>
+
+                                  {order.no_wsa && (
+                                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-semibold">
+                                      WSA: {order.no_wsa}
+                                    </span>
+                                  )}
+
+                                  {order.picking_no && (
+                                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                                      Pick #{order.picking_no}
+                                    </span>
+                                  )}
+                                  <StatusBadge status={order.status} />
+                                </div>
+
+                                <p className="text-xs text-[var(--text-secondary)]">
+                                  Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span> • Ekspedisi: <span className="font-semibold text-amber-800 dark:text-amber-300">{order.courier_name || 'General'}</span>
+                                  {order.driver_name && (
+                                    <span className="ml-1 text-[var(--text-muted)]">
+                                      • Driver: <strong className="text-[var(--text-primary)]">{order.driver_name}</strong>
+                                    </span>
+                                  )}
+                                </p>
+
+                                {order.driver_arrived_at && (
+                                  <p
+                                    className="text-xs text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1"
+                                    suppressHydrationWarning
+                                  >
+                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                    <span suppressHydrationWarning>
+                                      Tiba: {formatWIB(order.driver_arrived_at)} {mounted ? `(${formatDuration(getElapsedSeconds(order.driver_arrived_at))} yang lalu)` : ''}
+                                    </span>
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
+                                {isReadyForPickup ? (
+                                  <button
+                                    onClick={() => startHandoverWizard(order)}
+                                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
+                                  >
+                                    <span>Ambil Paket</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <span className="w-full sm:w-auto px-3.5 py-2.5 rounded-lg bg-sky-100 dark:bg-sky-950 border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Sedang Dipacking di Meja</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* CATEGORY 2: SIAP DIAMBIL DI RAK */}
+                  {(categoryTab === 'ALL' || categoryTab === 'READY') && readyOrders.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                          <h2 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <PackageCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            <span>Siap Diambil di Rak ({readyOrders.length})</span>
+                          </h2>
+                        </div>
+                        <span className="text-xs text-[var(--text-muted)]">
+                          Paket sudah berada di rak serah terima (belum lapor tiba)
+                        </span>
+                      </div>
+
+                      <div className="grid gap-3">
+                        {readyOrders.map((order) => (
                           <div
                             key={order.id}
-                            className="rounded-xl p-4 sm:p-5 border-2 border-amber-400 dark:border-amber-600/70 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all"
+                            className="rounded-xl p-4 sm:p-5 border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm"
                           >
                             <div className="space-y-1.5 flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950 shadow-xs">
-                                  ANTREAN #{order.queue_number ?? (idx + 1)}
-                                </span>
                                 <span className="text-base sm:text-lg font-bold font-mono text-[var(--text-primary)]">
                                   {order.order_number}
                                 </span>
-                                {/* <StatusBadge status={order.status} /> */}
 
                                 {order.no_wsa && (
                                   <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-semibold">
@@ -665,164 +892,134 @@ export default function CourierKioskPage() {
                               </div>
 
                               <p className="text-xs text-[var(--text-secondary)]">
-                                Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span> • Ekspedisi: <span className="font-semibold text-amber-800 dark:text-amber-300">{order.courier_name || 'General'}</span>
-                                {order.driver_name && (
-                                  <span className="ml-1 text-[var(--text-muted)]">
-                                    • Driver: <strong className="text-[var(--text-primary)]">{order.driver_name}</strong>
-                                  </span>
-                                )}
+                                Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span> • Ekspedisi: <span className="font-semibold text-[var(--text-primary)]">{order.courier_name || 'General'}</span>
                               </p>
-
-                              {order.driver_arrived_at && (
-                                <p
-                                  className="text-xs text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1"
-                                  suppressHydrationWarning
-                                >
-                                  <Clock className="w-3.5 h-3.5 text-amber-600" />
-                                  <span suppressHydrationWarning>
-                                    Tiba: {formatWIB(order.driver_arrived_at)} {mounted ? `(${formatDuration(getElapsedSeconds(order.driver_arrived_at))} yang lalu)` : ''}
-                                  </span>
-                                </p>
-                              )}
-
-                              {/* {order.items && order.items.length > 0 && (
-                                <div className="text-xs text-[var(--text-muted)] flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">
-                                  {order.items.map((i) => (
-                                    <span key={i.id} className="inline-flex items-center gap-1">
-                                      • {i.product_name} ({i.quantity}x)
-                                      {i.size && (
-                                        <span className="text-[10px] px-1 py-0.2 rounded bg-[var(--bg-primary)] border border-[var(--border-subtle)] font-mono">
-                                          {i.size}
-                                        </span>
-                                      )}
-                                      {i.warna && (
-                                        <span className="text-[10px] text-[var(--text-secondary)]">
-                                          ({i.warna})
-                                        </span>
-                                      )}
-                                    </span>
-                                  ))}
-                                </div>
-                              )} */}
                             </div>
 
                             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
-                              {isReadyForPickup ? (
-                                <button
-                                  onClick={() => startHandoverWizard(order)}
-                                  className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
-                                >
-                                  <span>Ambil Paket</span>
-                                  <ArrowRight className="w-3.5 h-3.5" />
-                                </button>
-                              ) : (
-                                <span className="w-full sm:w-auto px-3.5 py-2.5 rounded-lg bg-sky-100 dark:bg-sky-950 border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 animate-spin" />
-                                  <span>Sedang Dipacking di Meja</span>
-                                </span>
-                              )}
+                              <button
+                                onClick={() => handleDriverArrival(order)}
+                                disabled={submittingAction}
+                                className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>Saya Sudah Tiba</span>
+                              </button>
+
+                              <button
+                                onClick={() => startHandoverWizard(order)}
+                                className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
+                              >
+                                <span>Ambil Paket</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* CATEGORY 2: SIAP DIAMBIL DI RAK (BELUM KONFIRMASI TIBA) */}
-              {(categoryTab === 'ALL' || categoryTab === 'READY') && (
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      <h2 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <PackageCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        <span>Siap Diambil di Rak ({readyOrders.length})</span>
-                      </h2>
-                    </div>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      Paket sudah berada di rak serah terima (belum lapor tiba)
-                    </span>
-                  </div>
+                  {/* CATEGORY 3: SEDANG DIPACKING DI MEJA */}
+                  {(categoryTab === 'ALL' || categoryTab === 'PACKING') && packingOrders.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                          <h2 className="text-xs font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Clock className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                            <span>Sedang Dipacking di Meja ({packingOrders.length})</span>
+                          </h2>
+                        </div>
+                        <span className="text-xs text-[var(--text-muted)]">
+                          Paket sedang disiapkan oleh staf gudang
+                        </span>
+                      </div>
 
-                  {readyOrders.length === 0 ? (
-                    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 text-center text-[var(--text-muted)] text-xs">
-                      Saat ini tidak ada paket lain yang belum diambil di rak.
-                    </div>
-                  ) : (
-                    <div className="grid gap-3">
-                      {readyOrders.map((order) => (
-                        <div
-                          key={order.id}
-                          className="rounded-xl p-4 sm:p-5 border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm"
-                        >
-                          <div className="space-y-1.5 flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-base sm:text-lg font-bold font-mono text-[var(--text-primary)]">
-                                {order.order_number}
-                              </span>
-                              {/* <StatusBadge status={order.status} /> */}
-
-                              {order.no_wsa && (
-                                <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-semibold">
-                                  WSA: {order.no_wsa}
+                      <div className="grid gap-3">
+                        {packingOrders.map((order) => (
+                          <div
+                            key={order.id}
+                            className="rounded-xl p-4 sm:p-5 border border-sky-200 dark:border-sky-800/50 bg-sky-50/20 dark:bg-sky-950/10 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all"
+                          >
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-base sm:text-lg font-bold font-mono text-[var(--text-primary)]">
+                                  {order.order_number}
                                 </span>
-                              )}
 
-                              {order.picking_no && (
-                                <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
-                                  Pick #{order.picking_no}
-                                </span>
-                              )}
-                              <StatusBadge status={order.status} />
+                                {order.no_wsa && (
+                                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-semibold">
+                                    WSA: {order.no_wsa}
+                                  </span>
+                                )}
+
+                                {order.picking_no && (
+                                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                                    Pick #{order.picking_no}
+                                  </span>
+                                )}
+                                <StatusBadge status={order.status} />
+                              </div>
+
+                              <p className="text-xs text-[var(--text-secondary)]">
+                                Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span> • Ekspedisi: <span className="font-semibold text-[var(--text-primary)]">{order.courier_name || 'General'}</span>
+                              </p>
+                              <p className="text-[11px] text-sky-700 dark:text-sky-400">
+                                Paket sedang disiapkan. Jika Anda sudah menunggu di gudang, tekan tombol &quot;Saya Sudah Tiba&quot; agar staf packing memprioritaskan paket ini.
+                              </p>
                             </div>
 
-                            <p className="text-xs text-[var(--text-secondary)]">
-                              Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span> • Ekspedisi: <span className="font-semibold text-[var(--text-primary)]">{order.courier_name || 'General'}</span>
-                            </p>
-
-                            {/* {order.items && order.items.length > 0 && (
-                              <div className="text-xs text-[var(--text-muted)] flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">
-                                {order.items.map((i) => (
-                                  <span key={i.id} className="inline-flex items-center gap-1">
-                                    • {i.product_name} ({i.quantity}x)
-                                    {i.size && (
-                                      <span className="text-[10px] px-1 py-0.2 rounded bg-[var(--bg-primary)] border border-[var(--border-subtle)] font-mono">
-                                        {i.size}
-                                      </span>
-                                    )}
-                                    {i.warna && (
-                                      <span className="text-[10px] text-[var(--text-secondary)]">
-                                        ({i.warna})
-                                      </span>
-                                    )}
-                                  </span>
-                                ))}
-                              </div>
-                            )} */}
+                            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
+                              <button
+                                onClick={() => handleDriverArrival(order)}
+                                disabled={submittingAction}
+                                className="w-full sm:w-auto px-4 py-2.5 rounded-lg border border-amber-400 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-sm transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>Saya Sudah Tiba (Prioritaskan)</span>
+                              </button>
+                            </div>
                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
-                            <button
-                              onClick={() => handleDriverArrival(order)}
-                              disabled={submittingAction}
-                              className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-1.5"
-                            >
-                              <UserCheck className="w-3.5 h-3.5" />
-                              <span>Saya Sudah Tiba</span>
-                            </button>
-
-                            <button
-                              onClick={() => startHandoverWizard(order)}
-                              className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
-                            >
-                              <span>Ambil Paket</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                  {/* CATEGORY 4: TELAH SELESAI DISERAHKAN */}
+                  {categoryTab === 'ALL' && shippedOrders.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-slate-500" />
+                            <span>Telah Diserahkan / Selesai ({shippedOrders.length})</span>
+                          </h2>
                         </div>
-                      ))}
+                      </div>
+
+                      <div className="grid gap-3 opacity-75">
+                        {shippedOrders.map((order) => (
+                          <div
+                            key={order.id}
+                            className="rounded-xl p-4 border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-sm text-[var(--text-secondary)]">{order.order_number}</span>
+                                <StatusBadge status={order.status} />
+                              </div>
+                              <p className="text-xs text-[var(--text-muted)]">
+                                Penerima: {order.customer_name} • Driver: {order.driver_name || 'N/A'} • {order.shipped_at ? `Diambil: ${formatWIB(order.shipped_at)}` : ''}
+                              </p>
+                            </div>
+                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" /> Paket Selesai
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { StaffLayout } from '@/components/StaffLayout';
 import { Order, OrderItem } from '@/lib/types';
 import { useCamera } from '@/hooks/use-camera';
@@ -127,6 +128,8 @@ function OrderItemsManifest({
 export default function PickupAdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedPhotoAudit, setSelectedPhotoAudit] = useState<{
     orderNumber: string;
     driverName: string;
@@ -198,7 +201,7 @@ export default function PickupAdminPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch('/api/orders?limit=150');
+      const res = await fetch('/api/orders?exclude_status=SHIP&limit=200');
       if (res.ok) {
         const data = await res.json();
         setOrders(data.orders || []);
@@ -489,7 +492,36 @@ export default function PickupAdminPage() {
     });
   };
 
-  const waitingCouriers = orders
+  // Filter out any shipped orders from the active pickup desk
+  const activeOrders = orders.filter((o) => o.status !== 'SHIP');
+
+  const filteredOrders = activeOrders.filter((o) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const matchOrderNumber = o.order_number.toLowerCase().includes(q);
+    const matchWSA = o.no_wsa?.toLowerCase().includes(q) ?? false;
+    const matchCustomer = o.customer_name?.toLowerCase().includes(q) ?? false;
+    const matchCourier = o.courier_name?.toLowerCase().includes(q) ?? false;
+    const matchDriver = o.driver_name?.toLowerCase().includes(q) ?? false;
+    const matchPickupCode = o.pickup_code?.toLowerCase().includes(q) ?? false;
+    const matchPickingNo = o.picking_no?.toLowerCase().includes(q) ?? false;
+    const matchItems = o.items?.some(
+      (it) => it.product_name.toLowerCase().includes(q) || (it.sku && it.sku.toLowerCase().includes(q))
+    ) ?? false;
+
+    return (
+      matchOrderNumber ||
+      matchWSA ||
+      matchCustomer ||
+      matchCourier ||
+      matchDriver ||
+      matchPickupCode ||
+      matchPickingNo ||
+      matchItems
+    );
+  });
+
+  const waitingCouriers = filteredOrders
     .filter((o) => o.priority_status === 'DRIVER_WAITING' && o.status !== 'SHIP')
     .sort((a, b) => {
       if (a.queue_number && b.queue_number) {
@@ -500,20 +532,16 @@ export default function PickupAdminPage() {
       return tA - tB;
     });
 
-  const stagingShelves = orders.filter((o) => o.status === 'READY_FOR_PICKUP');
+  const stagingShelves = filteredOrders.filter((o) => o.status === 'READY_FOR_PICKUP');
 
-  const dispatchedOrders = orders
-    .filter((o) => o.status === 'SHIP' && o.pickup_transaction?.photo_key)
-    .sort((a, b) => {
-      const tA = a.shipped_at ? new Date(a.shipped_at).getTime() : 0;
-      const tB = b.shipped_at ? new Date(b.shipped_at).getTime() : 0;
-      return tB - tA;
-    });
+  const packingOrders = filteredOrders.filter(
+    (o) => o.status === 'PACKING' && o.priority_status !== 'DRIVER_WAITING'
+  );
 
   return (
     <StaffLayout
       title="Loket Pickup Kurir (Pickup Desk)"
-      subtitle="Manajemen rak serah terima, an penyerahan paket, verifikasi produk, dan audit foto bukti"
+      subtitle="Manajemen rak serah terima, penyerahan paket ke kurir, dan verifikasi barang"
       allowedRoles={['PICKUP_ADMIN', 'SUPERADMIN']}
     >
       <div className="space-y-6">
@@ -531,6 +559,88 @@ export default function PickupAdminPage() {
             </button>
           </div>
         )}
+
+        {/* TOP SEARCH & ACTION TOOLBAR */}
+        <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-3 w-4 h-4 text-[var(--text-muted)]" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari No. Order, WSA, PIN Pickup, Penerima, Ekspedisi, Driver, atau SKU..."
+                className="w-full pl-10 pr-20 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs sm:text-sm font-medium focus:outline-none focus:border-[var(--accent-primary)] placeholder:text-[var(--text-muted)]"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-3 top-2.5 text-xs font-bold px-2 py-0.5 rounded bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  RESET
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={fetchOrders}
+                disabled={loading}
+                title="Muat ulang data order"
+                className="px-3.5 py-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-secondary)] flex items-center gap-1.5 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+
+              <Link
+                href="/shipped-orders"
+                className="px-3.5 py-2.5 rounded-lg border border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 text-xs font-semibold hover:bg-purple-100 dark:hover:bg-purple-900/30 flex items-center gap-1.5 transition-colors"
+                title="Buka halaman arsip bukti foto pesanan yang telah dikirim"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Lihat Pesanan Terkirim</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Quick Status Summary Badges */}
+          <div className="flex items-center justify-between text-xs text-[var(--text-muted)] pt-1 border-t border-[var(--border-subtle)] flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span>Menunggu di Loket: <strong className="text-[var(--text-primary)]">{waitingCouriers.length}</strong></span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Siap di Rak: <strong className="text-[var(--text-primary)]">{stagingShelves.length}</strong></span>
+              </span>
+              {searchQuery && (
+                <span className="font-semibold text-[var(--accent-primary)]">
+                  • Filter Aktif: &quot;{searchQuery}&quot; ({filteredOrders.length} hasil)
+                </span>
+              )}
+            </div>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                className="text-xs text-[var(--accent-primary)] hover:underline font-semibold"
+              >
+                Hapus Filter
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* ZONE 1: COURIERS WAITING AT DOCK BAYS */}
         <div>
@@ -730,89 +840,104 @@ export default function PickupAdminPage() {
           )}
         </div>
 
-        {/* ZONE 3: RECENTLY DISPATCHED & PHOTO AUDIT */}
-        <div>
-          <div className="flex items-center justify-between mb-3 px-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-              <h2 className="text-sm font-bold text-purple-800 dark:text-purple-300 uppercase tracking-wider">
-                Area 3: Riwayat Penyerahan & Bukti Foto ({dispatchedOrders.length})
-              </h2>
+        {/* HASIL PENCARIAN: ORDER SEDANG DIPACKING (HANYA MUNCUL JIKA ADA PENCARIAN) */}
+        {searchQuery.trim().length > 0 && packingOrders.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                <h2 className="text-sm font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
+                  Hasil Pencarian: Sedang Dipacking di Meja ({packingOrders.length})
+                </h2>
+              </div>
+              <span className="text-xs text-[var(--text-muted)]">
+                Paket sedang dikemas oleh staf gudang
+              </span>
             </div>
-            <span className="text-xs text-[var(--text-muted)]">
-              Foto bukti serah terima terstempel tanggal, jam, dan produk yang diserahkan
-            </span>
-          </div>
 
-          {dispatchedOrders.length === 0 ? (
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 text-center text-xs text-[var(--text-muted)]">
-              Belum ada foto bukti serah terima paket terbaru.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {dispatchedOrders.map((order) => {
-                const pt = order.pickup_transaction;
-                return (
-                  <div
-                    key={order.id}
-                    className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3.5 shadow-sm flex flex-col justify-between gap-2.5 hover:border-[var(--border-strong)] transition-colors"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold text-xs text-[var(--text-primary)]">
-                          {order.order_number}
-                        </span>
-                        <StatusBadge status="SHIP" />
-                      </div>
-
-                      {/* Thumbnail Preview */}
-                      {pt?.photo_key && (
-                        <div
-                          onClick={() => inspectPhoto(order)}
-                          className="relative aspect-video rounded-lg overflow-hidden border border-[var(--border-subtle)] bg-black cursor-pointer group"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={pt.photo_key}
-                            alt="Preview Serah Terima"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-semibold text-white gap-1">
-                            <ZoomIn className="w-3.5 h-3.5" />
-                            <span>Periksa Foto</span>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="text-xs text-[var(--text-secondary)] space-y-0.5">
-                        <p>Driver: <span className="font-medium text-[var(--text-primary)]">{pt?.driver_name}</span></p>
-                        <p>Ekspedisi: <span className="font-semibold text-purple-700 dark:text-purple-400">{pt?.courier_company}</span></p>
-                        <p className="text-[11px] text-[var(--text-muted)] font-mono">
-                          {formatWIB(pt?.picked_up_at)}
-                        </p>
-                      </div>
-
-                      {/* Manifest Produk yang Masuk di Order */}
-                      <OrderItemsManifest
-                        items={order.items}
-                        isExpanded={!!expandedItems[order.id]}
-                        onToggle={() => toggleExpandItems(order.id)}
-                      />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {packingOrders.map((order) => (
+                <div
+                  key={order.id}
+                  className="rounded-xl p-4 border border-sky-300 dark:border-sky-800 bg-sky-50/20 dark:bg-sky-950/10 shadow-sm flex flex-col justify-between gap-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-base text-[var(--text-primary)]">
+                        {order.order_number}
+                      </span>
+                      <StatusBadge status={order.status} />
                     </div>
 
+                    <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
+                      <p>
+                        Penerima: <span className="font-medium text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span>
+                      </p>
+                      <p className="font-semibold text-sky-700 dark:text-sky-400">
+                        Ekspedisi: {order.courier_name || 'General'}
+                      </p>
+                      {order.no_wsa && (
+                        <p className="font-mono text-[11px] text-[var(--text-muted)]">
+                          WSA: {order.no_wsa}
+                        </p>
+                      )}
+                    </div>
+
+                    <OrderItemsManifest
+                      items={order.items}
+                      isExpanded={!!expandedItems[order.id]}
+                      onToggle={() => toggleExpandItems(order.id)}
+                    />
+                  </div>
+
+                  <div className="pt-2">
                     <button
-                      onClick={() => inspectPhoto(order)}
-                      className="w-full py-2 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-primary)] flex items-center justify-center gap-1.5 transition-colors"
+                      onClick={() => {
+                        setAssistOrder(order);
+                        setAssistDriverName('');
+                        setAssistCourier(order.courier_name || 'J&T Express');
+                      }}
+                      className="w-full py-2 px-3 rounded-lg border border-amber-400 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-xs"
                     >
-                      <Search className="w-3.5 h-3.5" />
-                      <span>Lihat Foto Penuh</span>
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Catat Driver Tiba (Prioritaskan)</span>
                     </button>
                   </div>
-                );
-              })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* EMPTY STATE: JIKA PENCARIAN TIDAK MENEMUKAN HASIL */}
+        {searchQuery.trim().length > 0 &&
+          waitingCouriers.length === 0 &&
+          stagingShelves.length === 0 &&
+          packingOrders.length === 0 && (
+            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-3 shadow-sm">
+              <div className="mx-auto w-12 h-12 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                <Package className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                Tidak Ada Order yang Cocok
+              </h3>
+              <p className="text-xs text-[var(--text-muted)]">
+                Tidak ditemukan order aktif untuk kata kunci <span className="font-mono font-bold text-[var(--text-primary)]">&quot;{searchQuery}&quot;</span>.
+              </p>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className="px-4 py-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-colors"
+                >
+                  Reset Pencarian
+                </button>
+              </div>
             </div>
           )}
-        </div>
       </div>
 
       {/* MODAL 1:  AMBIL PAKET (HANDOVER) DENGAN MANIFEST PRODUK & FOTO */}
