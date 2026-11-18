@@ -88,6 +88,11 @@ export default function CourierKioskPage() {
     courier_company: string;
     shipped_at: string;
     wait_duration_seconds?: number;
+    external_dispatch?: {
+      success: boolean;
+      error?: string;
+      shipmentNo?: string;
+    } | null;
   } | null>(null);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -374,6 +379,7 @@ export default function CourierKioskPage() {
         courier_company: receipt.courier_company,
         shipped_at: receipt.shipped_at,
         wait_duration_seconds: receipt.wait_duration_seconds,
+        external_dispatch: data.external_dispatch,
       });
 
       setStage('SUCCESS');
@@ -1402,6 +1408,25 @@ export default function CourierKioskPage() {
                   <div className="flex justify-between border-t border-[var(--border-subtle)] pt-2 text-amber-700 dark:text-amber-400 font-semibold">
                     <span>Durasi Menunggu Kurir:</span>
                     <span suppressHydrationWarning>{formatDuration(successReceipt.wait_duration_seconds)}</span>
+                  </div>
+                )}
+                {successReceipt.external_dispatch && (
+                  <div className="flex justify-between border-t border-[var(--border-subtle)] pt-2 text-xs">
+                    <span className="text-[var(--text-muted)]">Sinkronisasi ERP:</span>
+                    {successReceipt.external_dispatch.success ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Tersinkron (createDispatch)</span>
+                      </span>
+                    ) : (
+                      <span
+                        className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1"
+                        title={successReceipt.external_dispatch.error}
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Tidak Sync (Dapat diulang admin)</span>
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

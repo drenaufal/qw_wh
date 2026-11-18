@@ -52,6 +52,10 @@ export interface Order {
   driver_wait_duration_seconds: number | null;
   packing_duration_seconds: number | null;
   queue_number?: number | null;
+  dispatch_sync_status?: 'PENDING' | 'SYNCED' | 'FAILED' | string;
+  dispatch_sync_error?: string | null;
+  dispatch_synced_at?: string | null;
+  dispatch_retry_count?: number;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];

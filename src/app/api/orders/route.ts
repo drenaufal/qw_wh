@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
              o.driver_id, o.status, o.priority_status, o.driver_arrived_at, o.packing_started_at,
              o.packed_at, o.shipped_at, o.driver_wait_duration_seconds, o.packing_duration_seconds,
              o.queue_number,
+             o.dispatch_sync_status, o.dispatch_sync_error, o.dispatch_synced_at, o.dispatch_retry_count,
              o.created_at, o.updated_at,
              d.name as driver_name, d.phone as driver_phone,
              (
