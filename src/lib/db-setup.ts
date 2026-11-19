@@ -85,6 +85,10 @@ export async function setupDatabase() {
         driver_wait_duration_seconds INTEGER NULL,
         packing_duration_seconds INTEGER NULL,
         queue_number INTEGER NULL,
+        dispatch_sync_status VARCHAR(50) DEFAULT 'PENDING',
+        dispatch_sync_error TEXT NULL,
+        dispatch_synced_at TIMESTAMPTZ NULL,
+        dispatch_retry_count INTEGER DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
@@ -206,6 +210,10 @@ export async function setupDatabase() {
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_type VARCHAR(100);
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_code VARCHAR(100);
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS queue_number INTEGER;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatch_sync_status VARCHAR(50) DEFAULT 'PENDING';
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatch_sync_error TEXT NULL;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatch_synced_at TIMESTAMPTZ NULL;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatch_retry_count INTEGER DEFAULT 0;
 
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS size VARCHAR(50);
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS warna VARCHAR(255);
@@ -215,6 +223,7 @@ export async function setupDatabase() {
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
       CREATE INDEX IF NOT EXISTS idx_orders_no_wsa ON orders(no_wsa);
+      CREATE INDEX IF NOT EXISTS idx_orders_dispatch_sync_status ON orders(dispatch_sync_status);
       CREATE INDEX IF NOT EXISTS idx_orders_picking_no ON orders(picking_no);
       CREATE INDEX IF NOT EXISTS idx_orders_pickup_code ON orders(pickup_code);
       CREATE INDEX IF NOT EXISTS idx_orders_queue_number ON orders(queue_number);

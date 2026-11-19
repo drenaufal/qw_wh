@@ -21,6 +21,7 @@ import {
   Maximize,
   Download,
   ZoomIn,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function ShippedOrdersPage() {
@@ -36,6 +37,10 @@ export default function ShippedOrdersPage() {
   // Fullscreen Photo Lightbox
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
   const [activePhotoTitle, setActivePhotoTitle] = useState('');
+
+  // Retry ERP Dispatch
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const { subscribe } = useSSE();
 
@@ -87,6 +92,43 @@ export default function ShippedOrdersPage() {
     }
   };
 
+  const handleRetryDispatch = async (orderId: string) => {
+    try {
+      setRetryingId(orderId);
+      const res = await fetch(`/api/orders/${orderId}/retry-dispatch`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotification({
+          type: 'success',
+          message: `Berhasil sinkronisasi createDispatch ke ERP untuk order ${data.order?.order_number || ''}!`,
+        });
+        if (selectedOrderDetail && selectedOrderDetail.id === orderId) {
+          setSelectedOrderDetail((prev: any) => ({ ...prev, ...data.order }));
+        }
+        await fetchShippedOrders();
+      } else {
+        setNotification({
+          type: 'error',
+          message: data.message || data.error || 'Gagal sinkronisasi ke ERP',
+        });
+        if (selectedOrderDetail && selectedOrderDetail.id === orderId) {
+          setSelectedOrderDetail((prev: any) => ({ ...prev, ...data.order }));
+        }
+        await fetchShippedOrders();
+      }
+    } catch (err: any) {
+      setNotification({
+        type: 'error',
+        message: err.message || 'Terjadi kesalahan saat kirim ulang API ERP',
+      });
+    } finally {
+      setRetryingId(null);
+      setTimeout(() => setNotification(null), 6000);
+    }
+  };
+
   // Filter by courier fleet
   const filteredOrders = orders.filter((o) => {
     if (courierFilter !== 'ALL' && o.courier_name !== courierFilter) {
@@ -99,6 +141,12 @@ export default function ShippedOrdersPage() {
   const totalShipped = filteredOrders.length;
   const withPhotoCount = filteredOrders.filter(
     (o) => o.pickup_transaction?.photo_key
+  ).length;
+  const syncedCount = filteredOrders.filter(
+    (o) => o.dispatch_sync_status === 'SYNCED'
+  ).length;
+  const failedCount = filteredOrders.filter(
+    (o) => o.dispatch_sync_status === 'FAILED'
   ).length;
 
   // Available couriers for filter dropdown
@@ -123,6 +171,32 @@ export default function ShippedOrdersPage() {
       }
     >
       <div className="space-y-6">
+        {/* Notification Banner */}
+        {notification && (
+          <div
+            className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between transition-all ${
+              notification.type === 'success'
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+                : 'bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.15)]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {notification.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              <span>{notification.message}</span>
+            </div>
+            <button
+              onClick={() => setNotification(null)}
+              className="text-current opacity-70 hover:opacity-100 font-bold px-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* KPI Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm">
@@ -166,38 +240,38 @@ export default function ShippedOrdersPage() {
           <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Active Couriers
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Sync ERP Sukses
                 </p>
-                <h3 className="text-2xl font-black text-indigo-300 mt-1 font-mono">
-                  {couriers.length}
+                <h3 className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
+                  {syncedCount}
                 </h3>
               </div>
-              <div className="w-9 h-9 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-indigo-400">
-                <Truck className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-emerald-400">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-[11px] text-indigo-300 font-medium mt-3">
-              Multi-carrier dispatch network
+            <p className="text-xs text-emerald-400 font-medium mt-2 flex items-center gap-1">
+              <span>createDispatch berhasil di ERP</span>
             </p>
           </div>
 
           <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Audit Readiness
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Tidak Sync (Perlu Retry)
                 </p>
-                <h3 className="text-2xl font-black text-amber-300 mt-1 font-mono">
-                  100%
+                <h3 className={`text-2xl font-bold mt-1 font-mono ${failedCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                  {failedCount}
                 </h3>
               </div>
-              <div className="w-9 h-9 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-amber-400">
-                <ShieldCheck className="w-4 h-4" />
+              <div className={`w-9 h-9 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center ${failedCount > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                <AlertTriangle className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-[11px] text-amber-300 font-medium mt-3">
-              Immutable timestamped ledger
+            <p className={`text-xs font-medium mt-2 flex items-center gap-1 ${failedCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+              <span>{failedCount > 0 ? 'Klik "Kirim Ulang" pada tabel' : 'Semua dispatch tersinkron'}</span>
             </p>
           </div>
         </div>
@@ -242,19 +316,20 @@ export default function ShippedOrdersPage() {
               <thead className="bg-white/[0.02] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border-subtle)]">
                 <tr>
                   <th className="px-6 py-4">Foto Serah Terima</th>
-                  <th className="px-6 py-4">No. Order / Resi</th>
+                  <th className="px-6 py-4">No. Order / WSA</th>
                   <th className="px-6 py-4">Customer</th>
                   <th className="px-6 py-4">Ekspedisi & Driver</th>
                   <th className="px-6 py-4">Waktu Handover (WIB)</th>
                   <th className="px-6 py-4">Wait Time</th>
                   <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Status Sync ERP</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)]">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-muted)]">
+                    <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-muted)]">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
                         <span>Memuat data pesanan terkirim...</span>
@@ -263,7 +338,7 @@ export default function ShippedOrdersPage() {
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-muted)]">
+                    <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-muted)]">
                       <div className="space-y-1">
                         <Tag className="w-8 h-8 text-slate-500 mx-auto mb-2" />
                         <p className="font-bold text-white text-sm">Tidak ada pesanan dengan status Shipped</p>
@@ -382,6 +457,73 @@ export default function ShippedOrdersPage() {
                         {/* Status Badge */}
                         <td className="px-6 py-3.5">
                           <StatusBadge status="SHIP" />
+                        </td>
+
+                        {/* Status Sync ERP */}
+                        <td className="px-6 py-3.5">
+                          {ord.dispatch_sync_status === 'SYNCED' ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-[11px]">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Sync ERP</span>
+                              </span>
+                              {ord.dispatch_synced_at && (
+                                <span className="text-[10px] text-slate-400 block font-mono">
+                                  {formatWIB(ord.dispatch_synced_at)}
+                                </span>
+                              )}
+                            </div>
+                          ) : ord.dispatch_sync_status === 'FAILED' ? (
+                            <div className="space-y-1.5">
+                              <div
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold text-[11px]"
+                                title={ord.dispatch_sync_error || 'Gagal sinkronisasi ke ERP createDispatch'}
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                <span>Tidak Sync</span>
+                              </div>
+                              {ord.dispatch_sync_error && (
+                                <p
+                                  className="text-[10px] text-rose-300/80 max-w-[170px] line-clamp-2 leading-tight"
+                                  title={ord.dispatch_sync_error}
+                                >
+                                  {ord.dispatch_sync_error}
+                                </p>
+                              )}
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRetryDispatch(ord.id)}
+                                  disabled={retryingId === ord.id}
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-600/40 hover:bg-indigo-600/70 border border-indigo-500/40 text-indigo-200 font-bold text-[10px] inline-flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-sm"
+                                  title="Kirim ulang createDispatch ke ERP Business Central"
+                                >
+                                  <RefreshCw className={`w-3 h-3 ${retryingId === ord.id ? 'animate-spin' : ''}`} />
+                                  <span>{retryingId === ord.id ? 'Mengirim...' : 'Kirim Ulang'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-500/15 border border-slate-500/30 text-slate-300 font-medium text-[11px]">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>Pending</span>
+                              </span>
+                              {ord.no_wsa && (
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRetryDispatch(ord.id)}
+                                    disabled={retryingId === ord.id}
+                                    className="px-2.5 py-1 rounded-lg bg-indigo-600/40 hover:bg-indigo-600/70 border border-indigo-500/40 text-indigo-200 font-bold text-[10px] inline-flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-sm"
+                                  >
+                                    <RefreshCw className={`w-3 h-3 ${retryingId === ord.id ? 'animate-spin' : ''}`} />
+                                    <span>{retryingId === ord.id ? 'Mengirim...' : 'Kirim ERP'}</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         {/* Actions */}
@@ -556,6 +698,79 @@ export default function ShippedOrdersPage() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* ERP Business Central Integration (createDispatch) */}
+            <div className="glass-panel p-4 rounded-2xl border border-white/10 space-y-3 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="font-bold text-white uppercase text-[11px] tracking-wider text-emerald-400 flex items-center gap-1.5">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Status Integrasi ERP Business Central (createDispatch)</span>
+                </h4>
+                {selectedOrderDetail.no_wsa && (
+                  <button
+                    type="button"
+                    onClick={() => handleRetryDispatch(selectedOrderDetail.id)}
+                    disabled={retryingId === selectedOrderDetail.id}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs inline-flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-md cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${retryingId === selectedOrderDetail.id ? 'animate-spin' : ''}`} />
+                    <span>{retryingId === selectedOrderDetail.id ? 'Mengirim ke ERP...' : 'Kirim Ulang ke ERP'}</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="flex justify-between border-b border-white/[0.06] pb-1.5">
+                  <span className="text-slate-400">Nomor WSA (Shipment No):</span>
+                  <span className="font-mono font-bold text-indigo-300">
+                    {selectedOrderDetail.no_wsa || '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-white/[0.06] pb-1.5">
+                  <span className="text-slate-400">Status Sinkronisasi:</span>
+                  {selectedOrderDetail.dispatch_sync_status === 'SYNCED' ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-400 font-bold">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>SYNCED (Berhasil)</span>
+                    </span>
+                  ) : selectedOrderDetail.dispatch_sync_status === 'FAILED' ? (
+                    <span className="inline-flex items-center gap-1 text-rose-400 font-bold">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>FAILED (Tidak Sync)</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-amber-400 font-bold">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>PENDING</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex justify-between border-b border-white/[0.06] pb-1.5">
+                  <span className="text-slate-400">Waktu Terkirim ke ERP:</span>
+                  <span className="font-mono text-white">
+                    {selectedOrderDetail.dispatch_synced_at ? formatWIB(selectedOrderDetail.dispatch_synced_at) : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-white/[0.06] pb-1.5">
+                  <span className="text-slate-400">Jumlah Percobaan:</span>
+                  <span className="font-mono text-white">
+                    {selectedOrderDetail.dispatch_retry_count || 0} kali
+                  </span>
+                </div>
+              </div>
+
+              {selectedOrderDetail.dispatch_sync_error && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-[11px] uppercase tracking-wide">Pesan Error Integrasi ERP:</p>
+                    <p className="mt-0.5 font-mono text-[11px] leading-relaxed break-all">
+                      {selectedOrderDetail.dispatch_sync_error}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Items / SKU Table */}

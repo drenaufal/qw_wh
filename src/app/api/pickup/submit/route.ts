@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withTransaction } from '@/lib/db';
+import { query, withTransaction } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { sseManager } from '@/lib/sse';
+import { sendExternalDispatch, DispatchResult } from '@/lib/services/external-dispatch';
 
 export async function POST(req: NextRequest) {
   try {
@@ -167,15 +168,110 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Real-time broadcast
+    // Real-time broadcast handover complete
     sseManager.broadcast('pickupShipped', result);
     sseManager.broadcast('orderUpdate', result.order);
+
+    // Call external ERP createDispatch if no_wsa exists
+    let dispatchResult: DispatchResult | null = null;
+    let finalOrder = result.order;
+
+    const noWsa = result.order?.no_wsa?.trim();
+    if (noWsa) {
+      try {
+        dispatchResult = await sendExternalDispatch(noWsa);
+        if (dispatchResult.success) {
+          const updateRes = await query(
+            `UPDATE orders
+             SET dispatch_sync_status = 'SYNCED',
+                 dispatch_synced_at = NOW(),
+                 dispatch_sync_error = NULL
+             WHERE id = $1
+             RETURNING *`,
+            [result.order.id]
+          );
+          if (updateRes.rows.length > 0) {
+            finalOrder = updateRes.rows[0];
+          }
+
+          await logAudit({
+            actor_type: submittedByType === 'STAFF' ? 'USER' : 'DRIVER',
+            actor_user_id: submittedByUserId,
+            actor_name: user ? user.name : driver_name.trim(),
+            action: 'DISPATCH_SYNC_SUCCESS',
+            entity_type: 'ORDER',
+            entity_id: result.order.id,
+            new_values: {
+              dispatch_sync_status: 'SYNCED',
+              shipmentNo: noWsa,
+              response: dispatchResult.data,
+            },
+          });
+        } else {
+          const updateRes = await query(
+            `UPDATE orders
+             SET dispatch_sync_status = 'FAILED',
+                 dispatch_sync_error = $2
+             WHERE id = $1
+             RETURNING *`,
+            [result.order.id, dispatchResult.error || 'ERP dispatch failed']
+          );
+          if (updateRes.rows.length > 0) {
+            finalOrder = updateRes.rows[0];
+          }
+
+          await logAudit({
+            actor_type: submittedByType === 'STAFF' ? 'USER' : 'DRIVER',
+            actor_user_id: submittedByUserId,
+            actor_name: user ? user.name : driver_name.trim(),
+            action: 'DISPATCH_SYNC_FAILED',
+            entity_type: 'ORDER',
+            entity_id: result.order.id,
+            new_values: {
+              dispatch_sync_status: 'FAILED',
+              shipmentNo: noWsa,
+              error: dispatchResult.error,
+            },
+          });
+        }
+      } catch (err: any) {
+        console.error('External dispatch trigger error:', err);
+        const updateRes = await query(
+          `UPDATE orders
+           SET dispatch_sync_status = 'FAILED',
+               dispatch_sync_error = $2
+           WHERE id = $1
+           RETURNING *`,
+          [result.order.id, err.message || 'Error triggering external dispatch']
+        );
+        if (updateRes.rows.length > 0) {
+          finalOrder = updateRes.rows[0];
+        }
+      }
+
+      // Broadcast the final order state with dispatch sync info
+      sseManager.broadcast('orderUpdate', finalOrder);
+    } else {
+      const updateRes = await query(
+        `UPDATE orders
+         SET dispatch_sync_status = 'FAILED',
+             dispatch_sync_error = 'Tidak ada No WSA pada pesanan ini'
+         WHERE id = $1
+         RETURNING *`,
+        [result.order.id]
+      );
+      if (updateRes.rows.length > 0) {
+        finalOrder = updateRes.rows[0];
+      }
+      sseManager.broadcast('orderUpdate', finalOrder);
+    }
 
     return NextResponse.json({
       success: true,
       receipt: result.receipt,
       data: result.receipt,
-      order: result.order,
+      order: finalOrder,
+      external_dispatch: dispatchResult,
     });
   } catch (error: any) {
     console.error('Pickup submission error:', error);
