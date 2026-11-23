@@ -29,6 +29,7 @@ import {
   Check,
   Truck,
   Layers,
+  Tag,
 } from 'lucide-react';
 
 const COURIER_OPTIONS = [
@@ -684,6 +685,20 @@ export default function PickupAdminPage() {
                         <StatusBadge status={order.status} />
                       </div>
 
+                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                        {order.no_wsa && (
+                          <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                            WSA: {order.no_wsa}
+                          </span>
+                        )}
+                        {order.pickup_code && (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>Pick #{order.pickup_code}</span>
+                          </span>
+                        )}
+                      </div>
+
                       <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
                         <p className="font-semibold text-amber-800 dark:text-amber-300">
                           Ekspedisi: {order.courier_name || 'General Fleet'}
@@ -783,6 +798,20 @@ export default function PickupAdminPage() {
                         <PriorityBadge priority={order.priority_status} />
                       </div>
 
+                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                        {order.no_wsa && (
+                          <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                            WSA: {order.no_wsa}
+                          </span>
+                        )}
+                        {order.pickup_code && (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-800 dark:text-emerald-300 font-bold flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span>Pick #{order.pickup_code}</span>
+                          </span>
+                        )}
+                      </div>
+
                       <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
                         <p>
                           Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span>
@@ -867,6 +896,20 @@ export default function PickupAdminPage() {
                         {order.order_number}
                       </span>
                       <StatusBadge status={order.status} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                      {order.no_wsa && (
+                        <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                          WSA: {order.no_wsa}
+                        </span>
+                      )}
+                      {order.pickup_code && (
+                        <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/35 text-sky-800 dark:text-sky-300 font-bold flex items-center gap-1">
+                          <Tag className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                          <span>Pick #{order.pickup_code}</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
@@ -977,18 +1020,27 @@ export default function PickupAdminPage() {
                 <div>
                   <span className="text-[var(--text-muted)] block text-[11px]">No. Order:</span>
                   <span className="font-mono font-bold text-[var(--text-primary)] text-sm">{pickupModalOrder.order_number}</span>
+                  {pickupModalOrder.no_wsa && (
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono block">WSA: {pickupModalOrder.no_wsa}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-[var(--text-muted)] block text-[11px]">Kode Pickup / PIN:</span>
+                  {pickupModalOrder.pickup_code ? (
+                    <span className="font-mono font-bold text-amber-600 dark:text-amber-400 text-sm">
+                      {pickupModalOrder.pickup_code}
+                    </span>
+                  ) : (
+                    <span className="text-[var(--text-muted)] font-mono text-xs">-</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[var(--text-muted)] block text-[11px]">Nama Penerima:</span>
-                  <span className="font-medium text-[var(--text-primary)]">{pickupModalOrder.customer_name || 'N/A'}</span>
+                  <span className="font-medium text-[var(--text-primary)] truncate block">{pickupModalOrder.customer_name || 'N/A'}</span>
                 </div>
                 <div>
                   <span className="text-[var(--text-muted)] block text-[11px]">Ekspedisi Default:</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{pickupModalOrder.courier_name || 'General'}</span>
-                </div>
-                <div>
-                  <span className="text-[var(--text-muted)] block text-[11px]">Status Paket:</span>
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">SIAP DIAMBIL</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 block">{pickupModalOrder.courier_name || 'General'}</span>
                 </div>
               </div>
 
@@ -1334,6 +1386,11 @@ export default function PickupAdminPage() {
               <span className="font-bold font-mono text-[var(--text-primary)]">
                 {assistOrder.order_number}
               </span>
+              {assistOrder.pickup_code && (
+                <span className="ml-1.5 font-mono font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                  (Pick #{assistOrder.pickup_code})
+                </span>
+              )}
               . Ini akan mengaktifkan penghitung durasi tunggu dan menandai order pada layar TV status.
             </p>
 
@@ -1508,6 +1565,12 @@ export default function PickupAdminPage() {
                 <span className="text-[var(--text-muted)]">No. Order:</span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{pickupSuccessReceipt.order_number}</span>
               </div>
+              {pickupModalOrder?.pickup_code && (
+                <div className="flex justify-between">
+                  <span className="text-[var(--text-muted)]">Kode Pickup:</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{pickupModalOrder.pickup_code}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted)]">Nama Kurir:</span>
                 <span className="font-semibold text-[var(--text-primary)]">{pickupSuccessReceipt.driver_name}</span>

@@ -1,0 +1,54 @@
+# ==============================================================================
+# NGINX REVERSE PROXY CONFIGURATION (WLAN / JARINGAN LOKAL TANPA SSL)
+# Letakkan konfigurasi ini di server Linux:
+#   sudo cp nginx.conf.example /etc/nginx/sites-available/que-wh
+#   sudo ln -s /etc/nginx/sites-available/que-wh /etc/nginx/sites-enabled/
+#   sudo rm -f /etc/nginx/sites-enabled/default
+#   sudo nginx -t && sudo systemctl reload nginx
+# ==============================================================================
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _; # Menerima akses dari IP server manapun di WLAN (misal http://192.168.1.100)
+
+    # Batas ukuran payload request (untuk unggah foto bukti serah terima)
+    client_max_body_size 25M;
+
+    # Header umum reverse proxy
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # 1. Rute Utama Next.js App
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # 2. Rute Khusus Server-Sent Events (SSE) Real-time Antrean
+    # PENTING: Wajib mematikan buffering agar update live tidak tertahan/lag di Nginx!
+    location /api/events {
+        proxy_pass http://127.0.0.1:3000/api/events;
+        proxy_http_version 1.1;
+        proxy_set_header Connection '';
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    # 3. Cache static assets Next.js (opsional untuk kecepatan loading di WLAN)
+    location /_next/static/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        expires 365d;
+        access_log off;
+    }
+}
