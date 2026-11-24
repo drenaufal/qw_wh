@@ -8,6 +8,7 @@ import { useCamera } from '@/hooks/use-camera';
 import { useSSE } from '@/hooks/use-sse';
 import { formatWIB, formatDuration, getElapsedSeconds } from '@/lib/utils/datetime';
 import { StatusBadge, PriorityBadge } from '@/components/ui';
+import { AutoSyncControls } from '@/components/AutoSyncControls';
 import {
   AlertTriangle,
   X,
@@ -29,6 +30,7 @@ import {
   Check,
   Truck,
   Layers,
+  Tag,
 } from 'lucide-react';
 
 const COURIER_OPTIONS = [
@@ -167,6 +169,11 @@ export default function PickupAdminPage() {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [syncingExternal, setSyncingExternal] = useState(false);
+  const [syncNotification, setSyncNotification] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [nowSec, setNowSec] = useState(0);
 
@@ -212,6 +219,44 @@ export default function PickupAdminPage() {
       setLoading(false);
     }
   }, []);
+
+  const handleSyncExternal = async () => {
+    setSyncingExternal(true);
+    setSyncNotification(null);
+    try {
+      const res = await fetch('/api/orders/sync-external?type=all');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menarik data order dari external API');
+
+      let detailText =
+        data.message ||
+        `Berhasil sinkronisasi total ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`;
+      if (data.shipment && data.picking) {
+        detailText = `Berhasil sync ${data.count} order (${data.shipment.count} Siap Diambil, ${data.picking.count} Sedang Packing)!`;
+        if (data.picking?.error) {
+          detailText += ` [Picking: ${data.picking.error}]`;
+        }
+        if (data.shipment?.error) {
+          detailText += ` [Shipment: ${data.shipment.error}]`;
+        }
+      }
+
+      setSyncNotification({
+        type: 'success',
+        text: detailText,
+      });
+      await fetchOrders();
+      setTimeout(() => setSyncNotification(null), 6000);
+    } catch (err: any) {
+      setSyncNotification({
+        type: 'error',
+        text: err.message || 'Gagal menarik data dari external API',
+      });
+      setTimeout(() => setSyncNotification(null), 6000);
+    } finally {
+      setSyncingExternal(false);
+    }
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -560,6 +605,33 @@ export default function PickupAdminPage() {
           </div>
         )}
 
+        {/* Sync Notification Banner */}
+        {syncNotification && (
+          <div
+            className={`p-3 rounded-lg border text-xs font-medium flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
+              syncNotification.type === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {syncNotification.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+              )}
+              <span>{syncNotification.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSyncNotification(null)}
+              className="text-xs opacity-70 hover:opacity-100 font-bold ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* TOP SEARCH & ACTION TOOLBAR */}
         <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
@@ -587,16 +659,24 @@ export default function PickupAdminPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+              {/* Auto-Sync Toggle & Interval Controls */}
+              <AutoSyncControls
+                onSync={handleSyncExternal}
+                isSyncing={syncingExternal}
+                className="hidden sm:inline-flex"
+              />
+
+              {/* Sync / GET External API Button */}
               <button
                 type="button"
-                onClick={fetchOrders}
-                disabled={loading}
-                title="Muat ulang data order"
-                className="px-3.5 py-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-secondary)] flex items-center gap-1.5 transition-colors"
+                onClick={handleSyncExternal}
+                disabled={syncingExternal || loading}
+                title="Tarik data order terbaru dari API eksternal (Shipment & Picking)"
+                className="px-3.5 py-2.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingExternal ? 'animate-spin' : ''}`} />
+                <span>{syncingExternal ? 'Menarik...' : 'Tarik API'}</span>
               </button>
 
               <Link
@@ -682,6 +762,20 @@ export default function PickupAdminPage() {
                           {order.order_number}
                         </span>
                         <StatusBadge status={order.status} />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                        {order.no_wsa && (
+                          <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                            WSA: {order.no_wsa}
+                          </span>
+                        )}
+                        {order.pickup_code && (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>Pick #{order.pickup_code}</span>
+                          </span>
+                        )}
                       </div>
 
                       <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
@@ -783,6 +877,20 @@ export default function PickupAdminPage() {
                         <PriorityBadge priority={order.priority_status} />
                       </div>
 
+                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                        {order.no_wsa && (
+                          <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                            WSA: {order.no_wsa}
+                          </span>
+                        )}
+                        {order.pickup_code && (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-800 dark:text-emerald-300 font-bold flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span>Pick #{order.pickup_code}</span>
+                          </span>
+                        )}
+                      </div>
+
                       <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
                         <p>
                           Penerima: <span className="font-semibold text-[var(--text-primary)]">{order.customer_name || 'N/A'}</span>
@@ -867,6 +975,20 @@ export default function PickupAdminPage() {
                         {order.order_number}
                       </span>
                       <StatusBadge status={order.status} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                      {order.no_wsa && (
+                        <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                          WSA: {order.no_wsa}
+                        </span>
+                      )}
+                      {order.pickup_code && (
+                        <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/35 text-sky-800 dark:text-sky-300 font-bold flex items-center gap-1">
+                          <Tag className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                          <span>Pick #{order.pickup_code}</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
@@ -977,18 +1099,27 @@ export default function PickupAdminPage() {
                 <div>
                   <span className="text-[var(--text-muted)] block text-[11px]">No. Order:</span>
                   <span className="font-mono font-bold text-[var(--text-primary)] text-sm">{pickupModalOrder.order_number}</span>
+                  {pickupModalOrder.no_wsa && (
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono block">WSA: {pickupModalOrder.no_wsa}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-[var(--text-muted)] block text-[11px]">Kode Pickup / PIN:</span>
+                  {pickupModalOrder.pickup_code ? (
+                    <span className="font-mono font-bold text-amber-600 dark:text-amber-400 text-sm">
+                      {pickupModalOrder.pickup_code}
+                    </span>
+                  ) : (
+                    <span className="text-[var(--text-muted)] font-mono text-xs">-</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[var(--text-muted)] block text-[11px]">Nama Penerima:</span>
-                  <span className="font-medium text-[var(--text-primary)]">{pickupModalOrder.customer_name || 'N/A'}</span>
+                  <span className="font-medium text-[var(--text-primary)] truncate block">{pickupModalOrder.customer_name || 'N/A'}</span>
                 </div>
                 <div>
                   <span className="text-[var(--text-muted)] block text-[11px]">Ekspedisi Default:</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{pickupModalOrder.courier_name || 'General'}</span>
-                </div>
-                <div>
-                  <span className="text-[var(--text-muted)] block text-[11px]">Status Paket:</span>
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">SIAP DIAMBIL</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 block">{pickupModalOrder.courier_name || 'General'}</span>
                 </div>
               </div>
 
@@ -1334,6 +1465,11 @@ export default function PickupAdminPage() {
               <span className="font-bold font-mono text-[var(--text-primary)]">
                 {assistOrder.order_number}
               </span>
+              {assistOrder.pickup_code && (
+                <span className="ml-1.5 font-mono font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                  (Pick #{assistOrder.pickup_code})
+                </span>
+              )}
               . Ini akan mengaktifkan penghitung durasi tunggu dan menandai order pada layar TV status.
             </p>
 
@@ -1508,6 +1644,12 @@ export default function PickupAdminPage() {
                 <span className="text-[var(--text-muted)]">No. Order:</span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{pickupSuccessReceipt.order_number}</span>
               </div>
+              {pickupModalOrder?.pickup_code && (
+                <div className="flex justify-between">
+                  <span className="text-[var(--text-muted)]">Kode Pickup:</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{pickupModalOrder.pickup_code}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted)]">Nama Kurir:</span>
                 <span className="font-semibold text-[var(--text-primary)]">{pickupSuccessReceipt.driver_name}</span>

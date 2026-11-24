@@ -7,18 +7,22 @@ import {
   ExternalOrderPayload,
 } from '@/lib/services/order-ingest';
 
-// Dynamic reader for .env.local to support immediate changes without restarting server
+// Dynamic reader for .env files to support immediate changes without restarting server
 function getDynamicEnv(key: string): string | undefined {
+  if (process.env[key]) return process.env[key];
   try {
-    const envPath = path.resolve(process.cwd(), '.env.local');
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf-8');
-      const lines = content.split('\n');
-      for (const line of lines) {
-        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-        if (match && match[1] === key) {
-          const val = (match[2] || '').trim().replace(/^['"]|['"]$/g, '');
-          if (val) return val;
+    const envFiles = ['.env.local', '.env.production', '.env'];
+    for (const file of envFiles) {
+      const envPath = path.resolve(process.cwd(), file);
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf-8');
+        const lines = content.split('\n');
+        for (const line of lines) {
+          const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+          if (match && match[1] === key) {
+            const val = (match[2] || '').trim().replace(/^['"]|['"]$/g, '');
+            if (val) return val;
+          }
         }
       }
     }

@@ -28,6 +28,7 @@ import {
   RotateCw,
   Clock,
   PackageCheck,
+  Lock,
 } from 'lucide-react';
 
 type WizardStage = 'SELECT_ORDER' | 'DRIVER_INFO' | 'CAMERA' | 'REVIEW' | 'SUCCESS';
@@ -106,16 +107,7 @@ export default function CourierKioskPage() {
 
   useEffect(() => {
     setMounted(true);
-    try {
-      const savedName = localStorage.getItem('wh_driver_name');
-      const savedCompany = localStorage.getItem('wh_courier_company');
-      const savedPhone = localStorage.getItem('wh_driver_phone');
-      if (savedName) setDriverName(savedName);
-      if (savedCompany) setCourierCompany(savedCompany);
-      if (savedPhone) setDriverPhone(savedPhone);
-    } catch {
-      // ignore
-    }
+    // Note: driverName sengaja tidak dimuat dari localStorage agar selalu kosong saat form handover dibuka
   }, []);
 
   useEffect(() => {
@@ -288,9 +280,10 @@ export default function CourierKioskPage() {
   const startHandoverWizard = (order: Order) => {
     setSelectedOrder(order);
     setErrorMessage(null);
-    if (order.courier_name && COURIER_OPTIONS.includes(order.courier_name)) {
-      setCourierCompany(order.courier_name);
-    }
+    setDriverName('');
+    setDriverPhone('');
+    const targetCourier = order.courier_name?.trim() || 'General';
+    setCourierCompany(targetCourier);
     setStage('DRIVER_INFO');
   };
 
@@ -300,7 +293,8 @@ export default function CourierKioskPage() {
       setErrorMessage('Nama driver wajib diisi.');
       return;
     }
-    persistDriverInfo(driverName, courierCompany, driverPhone);
+    const finalCourier = selectedOrder?.courier_name?.trim() || courierCompany || 'General';
+    persistDriverInfo(driverName, finalCourier, driverPhone);
     setErrorMessage(null);
     setStage('CAMERA');
   };
@@ -395,6 +389,8 @@ export default function CourierKioskPage() {
     setCapturedPhotoUrl(null);
     setSuccessReceipt(null);
     setErrorMessage(null);
+    setDriverName('');
+    setDriverPhone('');
     setStage('SELECT_ORDER');
     setSearchQuery('');
     setCategoryTab('ALL');
@@ -790,7 +786,7 @@ export default function CourierKioskPage() {
                               <div className="space-y-1.5 flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950 shadow-xs">
-                                    ANTREAN #{order.queue_number ?? (idx + 1)}
+                                    ANTRIAN #{order.queue_number ?? (idx + 1)}
                                   </span>
                                   <span className="text-base sm:text-lg font-bold font-mono text-[var(--text-primary)]">
                                     {order.order_number}
@@ -802,9 +798,14 @@ export default function CourierKioskPage() {
                                     </span>
                                   )}
 
-                                  {order.picking_no && (
+                                  {/* {order.picking_no && (
                                     <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
                                       Pick #{order.picking_no}
+                                    </span>
+                                  )} */}
+                                   {order.pickup_code && (
+                                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                                      Pick #{order.pickup_code}
                                     </span>
                                   )}
                                   <StatusBadge status={order.status} />
@@ -889,11 +890,16 @@ export default function CourierKioskPage() {
                                   </span>
                                 )}
 
-                                {order.picking_no && (
+                                {/* {order.picking_no && (
                                   <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
                                     Pick #{order.picking_no}
                                   </span>
-                                )}
+                                )} */}
+                                 {order.pickup_code && (
+                                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                                      Pick #{order.pickup_code}
+                                    </span>
+                                  )}
                                 <StatusBadge status={order.status} />
                               </div>
 
@@ -960,11 +966,16 @@ export default function CourierKioskPage() {
                                   </span>
                                 )}
 
-                                {order.picking_no && (
+                                {/* {order.picking_no && (
                                   <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
                                     Pick #{order.picking_no}
                                   </span>
-                                )}
+                                )} */}
+                                 {order.pickup_code && (
+                                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                                      Pick #{order.pickup_code}
+                                    </span>
+                                  )}
                                 <StatusBadge status={order.status} />
                               </div>
 
@@ -1062,6 +1073,12 @@ export default function CourierKioskPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-[var(--text-muted)]">Nomor Pickup:</span>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                    {selectedOrder.pickup_code}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-[var(--text-muted)]">Nama Penerima:</span>
                   <span className="font-medium text-[var(--text-primary)]">
                     {selectedOrder.customer_name || 'N/A'}
@@ -1084,7 +1101,8 @@ export default function CourierKioskPage() {
                     type="text"
                     value={driverName}
                     onChange={(e) => setDriverName(e.target.value)}
-                    placeholder="Contoh: Budi Santoso"
+                    placeholder="Ketik nama lengkap driver..."
+                    autoFocus
                     required
                     className="w-full px-3.5 py-2.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
                   />
@@ -1092,19 +1110,23 @@ export default function CourierKioskPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
-                    Perusahaan Ekspedisi <span className="text-rose-500">*</span>
+                    Perusahaan Ekspedisi <span className="text-xs text-[var(--text-muted)] font-normal">(Sesuai Pesanan)</span>
                   </label>
-                  <select
-                    value={courierCompany}
-                    onChange={(e) => setCourierCompany(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
-                  >
-                    {COURIER_OPTIONS.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={selectedOrder.courier_name || courierCompany || 'General'}
+                      readOnly
+                      disabled
+                      className="w-full pl-3.5 pr-9 py-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-secondary)] text-xs font-semibold cursor-not-allowed select-none opacity-85"
+                    />
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-[var(--text-muted)]">
+                      <Lock className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                    Ekspedisi terkunci otomatis dan tidak dapat diubah oleh kurir.
+                  </p>
                 </div>
 
                 <div>
@@ -1175,34 +1197,36 @@ export default function CourierKioskPage() {
               </div>
 
               {cameraError && (
-                <div className="mb-3 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300 text-xs space-y-2">
+                <div className="mb-3 p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900 text-amber-900 dark:text-amber-200 text-xs space-y-2">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-bold">Kendala Sensor Kamera:</p>
-                      <p className="mt-0.5">{cameraError}</p>
+                      <p className="font-bold">Info Kamera di Jaringan Lokal (WLAN/HTTP):</p>
+                      <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
+                        Browser membatasi live stream video pada koneksi HTTP biasa. Anda tetap bisa langsung memotret menggunakan kamera HP dengan tombol di bawah ini:
+                      </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-rose-200 dark:border-rose-900">
-                    <button
-                      type="button"
-                      onClick={() => startCamera(facingMode)}
-                      className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs"
-                    >
-                      Coba Buka Kamera Lagi
-                    </button>
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200 dark:border-amber-900">
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-2.5 py-1 rounded bg-[var(--accent-primary)] text-white font-semibold text-xs flex items-center gap-1"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
                     >
-                      <UploadCloud className="w-3.5 h-3.5" />
-                      <span>Upload File Foto</span>
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Buka Kamera Perangkat / Jepret Foto</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startCamera(facingMode)}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs"
+                    >
+                      Coba Ulang Sensor
                     </button>
                     <button
                       type="button"
                       onClick={handleCapture}
-                      className="px-2.5 py-1 rounded border border-amber-400 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-semibold text-xs"
+                      className="px-2.5 py-1.5 rounded-lg border border-amber-400 bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 font-semibold text-xs"
                     >
                       Simulasi Foto Dummy
                     </button>
@@ -1259,11 +1283,12 @@ export default function CourierKioskPage() {
                 )}
               </div>
 
-              {/* Hidden file input */}
+              {/* Hidden file input with mobile camera direct capture */}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                capture="environment"
                 className="hidden"
                 onChange={handleFileUpload}
               />
@@ -1282,12 +1307,19 @@ export default function CourierKioskPage() {
 
                   <button
                     type="button"
-                    onClick={handleCapture}
-                    disabled={!isCameraReady && !cameraError}
+                    onClick={() => {
+                      if (isCameraReady) {
+                        handleCapture();
+                      } else {
+                        fileInputRef.current?.click();
+                      }
+                    }}
                     className="flex-1 py-3 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-2 min-h-[44px]"
                   >
                     <Camera className="w-4 h-4" />
-                    <span>Ambil Foto Bukti Serah Terima</span>
+                    <span>
+                      {isCameraReady ? 'Ambil Foto Bukti Serah Terima' : 'Buka Kamera HP / Ambil Foto'}
+                    </span>
                   </button>
                 </div>
 

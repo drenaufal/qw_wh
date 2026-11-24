@@ -2,16 +2,20 @@ import fs from 'fs';
 import path from 'path';
 
 function getDynamicEnv(key: string): string | undefined {
+  if (process.env[key]) return process.env[key];
   try {
-    const envPath = path.resolve(process.cwd(), '.env.local');
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf8');
-      const lines = content.split('\n');
-      for (const line of lines) {
-        const match = line.match(new RegExp(`^\\s*${key}\\s*=\\s*(.*)?\\s*$`));
-        if (match) {
-          const val = (match[1] || '').trim().replace(/^['"]|['"]$/g, '');
-          if (val) return val;
+    const envFiles = ['.env.local', '.env.production', '.env'];
+    for (const file of envFiles) {
+      const envPath = path.resolve(process.cwd(), file);
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const lines = content.split('\n');
+        for (const line of lines) {
+          const match = line.match(new RegExp(`^\\s*${key}\\s*=\\s*(.*)?\\s*$`));
+          if (match) {
+            const val = (match[1] || '').trim().replace(/^['"]|['"]$/g, '');
+            if (val) return val;
+          }
         }
       }
     }

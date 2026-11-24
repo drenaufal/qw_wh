@@ -1,0 +1,46 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: que_wh_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - DATABASE_URL=postgresql://wh_user:wh_password_rahasia@db:5432/qw_whv4
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=qw_whv4
+      - DATABASE_USER=wh_user
+      - DATABASE_PASSWORD=wh_password_rahasia
+      - JWT_SECRET=super-secret-jwt-key-warehouse-queue-2026-min-32-chars
+    env_file:
+      - .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: que_wh_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wh_user
+      POSTGRES_PASSWORD: wh_password_rahasia
+      POSTGRES_DB: qw_whv4
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wh_user -d qw_whv4"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
