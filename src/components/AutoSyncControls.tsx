@@ -21,20 +21,30 @@ export function AutoSyncControls({
   isSyncing = false,
   className = '',
 }: AutoSyncControlsProps) {
-  const [enabled, setEnabled] = useState(false);
-  // const [intervalSec, setIntervalSec] = useState(60);
-  // const [secondsRemaining, setSecondsRemaining] = useState(60);
+  const [enabled, setEnabled] = useState(true);
   const [intervalSec, setIntervalSec] = useState(120);
   const [secondsRemaining, setSecondsRemaining] = useState(120);
   const [mounted, setMounted] = useState(false);
+  const initialSyncFiredRef = useRef(false);
 
-  // Load preferences from localStorage on mount
+  // Load preferences from localStorage on mount & trigger initial sync if enabled
   useEffect(() => {
     setMounted(true);
+    let isAutoSyncActive = true;
     try {
       const savedEnabled = localStorage.getItem('wh_auto_sync_enabled');
       if (savedEnabled !== null) {
-        setEnabled(savedEnabled === 'true');
+        isAutoSyncActive = savedEnabled === 'true';
+        setEnabled(isAutoSyncActive);
+      } else {
+        // Default ON saat pertama kali diakses
+        isAutoSyncActive = true;
+        setEnabled(true);
+        try {
+          localStorage.setItem('wh_auto_sync_enabled', 'true');
+        } catch {
+          // ignore
+        }
       }
       const savedInterval = localStorage.getItem('wh_auto_sync_interval');
       if (savedInterval) {
@@ -47,6 +57,19 @@ export function AutoSyncControls({
       }
     } catch {
       // ignore
+    }
+
+    // Trigger initial sync 1x on page access if enabled
+    if (isAutoSyncActive && !initialSyncFiredRef.current) {
+      initialSyncFiredRef.current = true;
+      const initialTimer = setTimeout(() => {
+        try {
+          onSyncRef.current();
+        } catch (err) {
+          console.error('Initial auto-sync execution error:', err);
+        }
+      }, 500);
+      return () => clearTimeout(initialTimer);
     }
   }, []);
 

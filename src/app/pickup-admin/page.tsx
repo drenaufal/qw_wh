@@ -8,6 +8,7 @@ import { useCamera } from '@/hooks/use-camera';
 import { useSSE } from '@/hooks/use-sse';
 import { formatWIB, formatDuration, getElapsedSeconds } from '@/lib/utils/datetime';
 import { StatusBadge, PriorityBadge } from '@/components/ui';
+import { AutoSyncControls } from '@/components/AutoSyncControls';
 import {
   AlertTriangle,
   X,
@@ -168,6 +169,11 @@ export default function PickupAdminPage() {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [syncingExternal, setSyncingExternal] = useState(false);
+  const [syncNotification, setSyncNotification] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [nowSec, setNowSec] = useState(0);
 
@@ -213,6 +219,44 @@ export default function PickupAdminPage() {
       setLoading(false);
     }
   }, []);
+
+  const handleSyncExternal = async () => {
+    setSyncingExternal(true);
+    setSyncNotification(null);
+    try {
+      const res = await fetch('/api/orders/sync-external?type=all');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menarik data order dari external API');
+
+      let detailText =
+        data.message ||
+        `Berhasil sinkronisasi total ${data.count} order (${data.insertedCount} baru, ${data.updatedCount} diupdate)!`;
+      if (data.shipment && data.picking) {
+        detailText = `Berhasil sync ${data.count} order (${data.shipment.count} Siap Diambil, ${data.picking.count} Sedang Packing)!`;
+        if (data.picking?.error) {
+          detailText += ` [Picking: ${data.picking.error}]`;
+        }
+        if (data.shipment?.error) {
+          detailText += ` [Shipment: ${data.shipment.error}]`;
+        }
+      }
+
+      setSyncNotification({
+        type: 'success',
+        text: detailText,
+      });
+      await fetchOrders();
+      setTimeout(() => setSyncNotification(null), 6000);
+    } catch (err: any) {
+      setSyncNotification({
+        type: 'error',
+        text: err.message || 'Gagal menarik data dari external API',
+      });
+      setTimeout(() => setSyncNotification(null), 6000);
+    } finally {
+      setSyncingExternal(false);
+    }
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -561,6 +605,33 @@ export default function PickupAdminPage() {
           </div>
         )}
 
+        {/* Sync Notification Banner */}
+        {syncNotification && (
+          <div
+            className={`p-3 rounded-lg border text-xs font-medium flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
+              syncNotification.type === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {syncNotification.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+              )}
+              <span>{syncNotification.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSyncNotification(null)}
+              className="text-xs opacity-70 hover:opacity-100 font-bold ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* TOP SEARCH & ACTION TOOLBAR */}
         <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
@@ -588,16 +659,24 @@ export default function PickupAdminPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+              {/* Auto-Sync Toggle & Interval Controls */}
+              <AutoSyncControls
+                onSync={handleSyncExternal}
+                isSyncing={syncingExternal}
+                className="hidden sm:inline-flex"
+              />
+
+              {/* Sync / GET External API Button */}
               <button
                 type="button"
-                onClick={fetchOrders}
-                disabled={loading}
-                title="Muat ulang data order"
-                className="px-3.5 py-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-secondary)] flex items-center gap-1.5 transition-colors"
+                onClick={handleSyncExternal}
+                disabled={syncingExternal || loading}
+                title="Tarik data order terbaru dari API eksternal (Shipment & Picking)"
+                className="px-3.5 py-2.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingExternal ? 'animate-spin' : ''}`} />
+                <span>{syncingExternal ? 'Menarik...' : 'Tarik API'}</span>
               </button>
 
               <Link
