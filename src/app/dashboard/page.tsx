@@ -202,7 +202,7 @@ export default function DashboardPage() {
           </Link>
 
           <Link
-            href="/"
+            href="/kiosk"
             target="_blank"
             className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:border-amber-500 hover:bg-[var(--bg-card-hover)] transition-all flex items-center justify-between group shadow-sm"
           >

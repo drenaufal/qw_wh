@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     const exclude_status = searchParams.get('exclude_status');
     const priority = searchParams.get('priority');
     const search = searchParams.get('search');
+    const shippedToday = searchParams.get('shipped_today') === 'true';
     const limit = parseInt(searchParams.get('limit') || '150');
 
     let sql = `
@@ -83,6 +84,10 @@ export async function GET(req: NextRequest) {
       paramIndex++;
     }
 
+    if (shippedToday) {
+      sql += ` AND (o.shipped_at AT TIME ZONE 'Asia/Jakarta')::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`;
+    }
+
     if (search) {
       sql += ` AND (
         o.order_number ILIKE $${paramIndex} OR
@@ -97,9 +102,11 @@ export async function GET(req: NextRequest) {
       paramIndex++;
     }
 
-    // Sort: If driver_waiting, sort ASC by queue_number and driver_arrived_at; otherwise created_at DESC
+    // Sort: If driver_waiting, sort ASC by queue_number and driver_arrived_at; if shippedToday, sort by shipped_at DESC; otherwise created_at DESC
     if (priority === 'DRIVER_WAITING') {
       sql += ` ORDER BY o.queue_number ASC NULLS LAST, o.driver_arrived_at ASC NULLS LAST, o.created_at ASC`;
+    } else if (shippedToday) {
+      sql += ` ORDER BY o.shipped_at DESC NULLS LAST, o.created_at DESC`;
     } else {
       sql += ` ORDER BY 
         CASE WHEN o.priority_status = 'DRIVER_WAITING' THEN 0 ELSE 1 END,

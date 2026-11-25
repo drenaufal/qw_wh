@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     }
 
     const res = await query(
-      `SELECT u.id, u.role_id, r.code as role_code, r.name as role_name,
+      `SELECT u.id, u.role_id, r.code as role_code, r.name as role_name, r.permissions as role_permissions,
               u.name, u.username, u.is_active, u.last_login_at, u.created_at, u.updated_at
        FROM users u
        JOIN roles r ON u.role_id = r.id

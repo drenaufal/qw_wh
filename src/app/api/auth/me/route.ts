@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
         role_id: user.role_id,
         role_code: user.role_code,
         role_name: user.role_name,
+        role_permissions: user.role_permissions || [],
         name: user.name,
         username: user.username,
         last_login_at: user.last_login_at,

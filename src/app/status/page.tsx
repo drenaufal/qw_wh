@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Order, TVAudioSettings } from '@/lib/types';
 import { useSSE } from '@/hooks/use-sse';
-import { formatWIB, formatDuration, getElapsedSeconds } from '@/lib/utils/datetime';
+import { formatWIB, formatDuration, getElapsedSeconds, isTodayWIB } from '@/lib/utils/datetime';
 import { SSEStatusBeacon } from '@/components/ui';
 import { playNotificationSound } from '@/lib/utils/audio';
 import { TVAudioSettingsModal } from '@/components/TVAudioSettingsModal';
@@ -156,11 +156,15 @@ export default function OverheadTVStatusPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch('/api/orders?limit=150');
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(data.orders || []);
-      }
+      const [activeRes, shippedTodayRes] = await Promise.all([
+        fetch('/api/orders?exclude_status=SHIP&limit=200'),
+        fetch('/api/orders?status=SHIP&shipped_today=true&limit=200'),
+      ]);
+
+      const activeData = activeRes.ok ? await activeRes.json() : { orders: [] };
+      const shippedData = shippedTodayRes.ok ? await shippedTodayRes.json() : { orders: [] };
+
+      setOrders([...(activeData.orders || []), ...(shippedData.orders || [])]);
     } catch (err) {
       console.error('Failed to fetch status board orders:', err);
     } finally {
@@ -268,13 +272,12 @@ export default function OverheadTVStatusPage() {
   const waitingOrders = orders.filter((o) => o.status === 'WAITING' && o.priority_status === 'NORMAL');
 
   const shippedOrders = orders
-    .filter((o) => o.status === 'SHIP')
+    .filter((o) => o.status === 'SHIP' && isTodayWIB(o.shipped_at, nowTimestamp || Date.now()))
     .sort((a, b) => {
       const tA = a.shipped_at ? new Date(a.shipped_at).getTime() : 0;
       const tB = b.shipped_at ? new Date(b.shipped_at).getTime() : 0;
       return tB - tA;
-    })
-    .slice(0, 15);
+    });
 
   const activeCount = Object.values(visibleColumns).filter(Boolean).length;
 
@@ -362,7 +365,7 @@ export default function OverheadTVStatusPage() {
           </button>
 
           <Link
-            href="/"
+            href="/kiosk"
             target="_blank"
             className="px-3.5 py-1.5 rounded-lg bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-bold text-xs transition-colors flex items-center gap-1"
           >
@@ -903,7 +906,7 @@ export default function OverheadTVStatusPage() {
                   </h2>
                 </div>
                 <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
-                  DISPATCHED
+                  HARI INI
                 </span>
               </div>
 
@@ -911,7 +914,7 @@ export default function OverheadTVStatusPage() {
                 {shippedOrders.length === 0 ? (
                   <div className="h-32 flex flex-col items-center justify-center text-xs text-[var(--text-muted)] text-center">
                     <Truck className="w-8 h-8 text-purple-500/40 mb-1.5" />
-                    Belum ada paket dikirim
+                    Belum ada paket dikirim hari ini
                   </div>
                 ) : (
                   shippedOrders.map((ord) => (

@@ -50,7 +50,7 @@ export async function getCurrentUser(req: NextRequest): Promise<User | null> {
   if (!decoded) return null;
 
   const res = await query<User>(
-    `SELECT u.id, u.role_id, r.code as role_code, r.name as role_name,
+    `SELECT u.id, u.role_id, r.code as role_code, r.name as role_name, r.permissions as role_permissions,
             u.name, u.username, u.is_active, u.last_login_at, u.created_at, u.updated_at
      FROM users u
      JOIN roles r ON u.role_id = r.id
@@ -64,7 +64,8 @@ export async function getCurrentUser(req: NextRequest): Promise<User | null> {
 
 export async function authenticateRequest(
   req: NextRequest,
-  allowedRoles?: UserRole[]
+  allowedRoles?: UserRole[],
+  requiredPermission?: string
 ): Promise<{ user: User } | { errorResponse: NextResponse }> {
   const user = await getCurrentUser(req);
 
@@ -77,7 +78,21 @@ export async function authenticateRequest(
     };
   }
 
+  // Superadmin always has full access
+  if (user.role_code === 'SUPERADMIN') {
+    return { user };
+  }
+
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role_code)) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'Forbidden: Insufficient permissions for this action' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  if (requiredPermission && (!user.role_permissions || !user.role_permissions.includes(requiredPermission))) {
     return {
       errorResponse: NextResponse.json(
         { error: 'Forbidden: Insufficient permissions for this action' },

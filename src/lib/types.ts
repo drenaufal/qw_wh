@@ -1,20 +1,31 @@
-export type UserRole = 'SUPERADMIN' | 'PACKER' | 'PICKUP_ADMIN';
+export type UserRole = 'SUPERADMIN' | 'PACKER' | 'PICKUP_ADMIN' | string;
 
 export type OrderStatus = 'WAITING' | 'PACKING' | 'READY_FOR_PICKUP' | 'SHIP';
 
 export type PriorityStatus = 'NORMAL' | 'DRIVER_WAITING';
 
+export interface Role {
+  id: string;
+  code: string;
+  name: string;
+  permissions: string[];
+  user_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface User {
   id: string;
   role_id: string;
-  role_code: UserRole;
+  role_code: string;
   role_name: string;
+  role_permissions?: string[];
   name: string;
   username: string;
   is_active: boolean;
   last_login_at: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface OrderItem {

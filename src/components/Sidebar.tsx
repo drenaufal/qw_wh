@@ -29,8 +29,13 @@ export function Sidebar() {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
 
   const isSuperAdmin = user?.role_code === 'SUPERADMIN';
-  const isPacker = user?.role_code === 'PACKER' || isSuperAdmin;
-  const isPickupAdmin = user?.role_code === 'PICKUP_ADMIN' || isSuperAdmin;
+  const userPermissions = user?.role_permissions || [];
+  const isPickupAdmin = user?.role_code === 'PICKUP_ADMIN' || isSuperAdmin || userPermissions.includes('/pickup-admin');
+
+  const checkAccess = (path: string) => {
+    if (isSuperAdmin) return true;
+    return userPermissions.includes(path);
+  };
 
   const navItems = [
     {
@@ -38,65 +43,65 @@ export function Sidebar() {
       href: '/dashboard',
       icon: LayoutDashboard,
       badge: 'LIVE',
-      show: true,
+      show: checkAccess('/dashboard'),
     },
     {
       name: 'Meja Packing',
       href: '/packing',
       icon: Package,
       badge: 'STASIUN',
-      show: isPacker,
+      show: checkAccess('/packing'),
     },
     {
       name: 'Loket Pickup Driver',
       href: '/pickup-admin',
       icon: Truck,
       badge: 'DOCK',
-      show: isPickupAdmin,
+      show: checkAccess('/pickup-admin'),
     },
     {
       name: 'Antrian Order Aktif',
       href: '/orders',
       icon: ClipboardList,
       badge: 'ANTREAN',
-      show: true,
+      show: checkAccess('/orders'),
     },
     {
       name: 'Riwayat Terkirim',
       href: '/shipped-orders',
       icon: CheckCircle2,
       badge: 'BUKTI',
-      show: true,
+      show: checkAccess('/shipped-orders'),
     },
     {
       name: 'Layar Monitor TV',
       href: '/status',
       icon: Tv,
       badge: 'OVERHEAD',
-      show: true,
+      show: checkAccess('/status'),
       external: true,
     },
     {
       name: 'Kiosk Kedatangan Driver',
-      href: '/',
+      href: '/kiosk',
       icon: UserCheck,
       badge: 'TOUCH',
-      show: true,
+      show: checkAccess('/kiosk'),
       external: true,
     },
     {
-      name: 'Kelola Akun Staf',
+      name: 'Kelola Akun & Peran',
       href: '/users',
       icon: Users,
       badge: 'AKSES',
-      show: isSuperAdmin,
+      show: checkAccess('/users'),
     },
     {
       name: 'Log Audit Sistem',
       href: '/audit',
       icon: ShieldCheck,
       badge: 'LOG',
-      show: isSuperAdmin,
+      show: checkAccess('/audit'),
     },
   ];
 

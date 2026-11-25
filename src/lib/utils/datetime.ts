@@ -59,11 +59,32 @@ export function formatDuration(seconds?: number | null): string {
 /**
  * Calculates live elapsed seconds from a start timestamp until now
  */
-export function getElapsedSeconds(startTimeStr?: string | null): number {
+export function getElapsedSeconds(startTimeStr?: string | Date | null): number {
   if (!startTimeStr) return 0;
-  const start = new Date(startTimeStr).getTime();
+  const start = typeof startTimeStr === 'string' ? new Date(startTimeStr).getTime() : startTimeStr.getTime();
   if (isNaN(start)) return 0;
   const now = Date.now();
   return Math.max(0, Math.floor((now - start) / 1000));
+}
+
+/**
+ * Checks if a date falls on today's calendar day in Asia/Jakarta (WIB UTC+7)
+ */
+export function isTodayWIB(
+  dateStrOrObj?: string | Date | null,
+  referenceTimestamp: number = Date.now()
+): boolean {
+  if (!dateStrOrObj) return false;
+  const date = typeof dateStrOrObj === 'string' ? new Date(dateStrOrObj) : dateStrOrObj;
+  if (isNaN(date.getTime())) return false;
+
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return fmt.format(date) === fmt.format(new Date(referenceTimestamp));
 }
 

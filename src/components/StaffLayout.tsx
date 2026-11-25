@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 import { Sidebar } from './Sidebar';
 import { UserRole } from '@/lib/types';
@@ -27,6 +27,7 @@ export function StaffLayout({
 }: StaffLayoutProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { isConnected } = useSSE();
   const [currentClock, setCurrentClock] = useState<string>('');
 
@@ -57,12 +58,24 @@ export function StaffLayout({
     return null;
   }
 
-  if (
-    allowedRoles &&
-    allowedRoles.length > 0 &&
-    user.role_code !== 'SUPERADMIN' &&
-    !allowedRoles.includes(user.role_code)
-  ) {
+  // Access check: SUPERADMIN always has access
+  const isSuperAdmin = user.role_code === 'SUPERADMIN';
+  const userPermissions = user.role_permissions || [];
+
+  let hasAccess = true;
+  if (!isSuperAdmin) {
+    if (allowedRoles && allowedRoles.length > 0) {
+      const roleAllowed = allowedRoles.includes(user.role_code);
+      const permAllowed = userPermissions.some((p) => pathname.startsWith(p));
+      hasAccess = roleAllowed || permAllowed;
+    } else {
+      if (pathname !== '/dashboard') {
+        hasAccess = userPermissions.some((p) => pathname.startsWith(p));
+      }
+    }
+  }
+
+  if (!hasAccess) {
     return (
       <div className="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
         <Sidebar />
@@ -72,7 +85,7 @@ export function StaffLayout({
           </div>
           <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">Akses Dibatasi</h2>
           <p className="text-xs text-[var(--text-secondary)] max-w-md mb-5 leading-relaxed">
-            Peran akun Anda (<span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{user.role_code}</span>) tidak memiliki izin untuk modul ini.
+            Peran akun Anda (<span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{user.role_name || user.role_code}</span>) tidak memiliki izin untuk membuka modul ini.
           </p>
           <button
             onClick={() => router.push('/dashboard')}
