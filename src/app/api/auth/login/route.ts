@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const res = await query(
-      `SELECT u.id, u.role_id, r.code as role_code, r.name as role_name,
+      `SELECT u.id, u.role_id, r.code as role_code, r.name as role_name, r.permissions as role_permissions,
               u.name, u.username, u.password_hash, u.is_active
        FROM users u
        JOIN roles r ON u.role_id = r.id
@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       role_id: user.role_id,
       role_code: user.role_code,
       role_name: user.role_name,
+      role_permissions: user.role_permissions || [],
       name: user.name,
       username: user.username,
     };

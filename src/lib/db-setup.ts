@@ -47,6 +47,7 @@ export async function setupDatabase() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         code VARCHAR(50) UNIQUE NOT NULL,
         name VARCHAR(100) NOT NULL,
+        permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
@@ -246,14 +247,21 @@ export async function setupDatabase() {
       CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
     `);
 
-    console.log('--- Ensuring Base Roles Exist ---');
+    console.log('--- Ensuring Base Roles & Permissions Exist ---');
     await client.query(`
-      INSERT INTO roles (code, name)
+      ALTER TABLE roles ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+      INSERT INTO roles (code, name, permissions)
       VALUES 
-        ('SUPERADMIN', 'Super Admin'),
-        ('PACKER', 'Packer'),
-        ('PICKUP_ADMIN', 'Pickup Admin')
-      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+        ('SUPERADMIN', 'Super Admin', '["/dashboard", "/packing", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/kiosk", "/users", "/audit"]'::jsonb),
+        ('PACKER', 'Packer', '["/dashboard", "/packing", "/orders", "/shipped-orders", "/status", "/kiosk"]'::jsonb),
+        ('PICKUP_ADMIN', 'Pickup Admin', '["/dashboard", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/kiosk"]'::jsonb)
+      ON CONFLICT (code) DO UPDATE SET 
+        name = EXCLUDED.name,
+        permissions = CASE 
+          WHEN roles.permissions IS NULL OR roles.permissions = '[]'::jsonb THEN EXCLUDED.permissions 
+          ELSE roles.permissions 
+        END;
 
       INSERT INTO system_settings (key, value)
       VALUES (

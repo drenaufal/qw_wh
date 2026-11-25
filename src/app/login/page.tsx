@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 import Link from 'next/link';
@@ -11,8 +11,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { user, loading, login } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, loading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,7 +110,7 @@ export default function LoginPage() {
         </form>
 
         {/* Quick Demo Credentials */}
-        <div className="mt-6 pt-5 border-t border-[var(--border-subtle)]">
+        {/* <div className="mt-6 pt-5 border-t border-[var(--border-subtle)]">
           <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider text-center mb-2.5">
             Akun Cepat Uji Coba (Password: admin123)
           </p>
@@ -134,11 +140,11 @@ export default function LoginPage() {
               <div className="text-[10px] text-[var(--text-muted)]">PICKUP_ADMIN</div>
             </button>
           </div>
-        </div>
+        </div> */}
 
         {/* Public Kiosk Links */}
         <div className="mt-5 flex items-center justify-between text-xs text-[var(--text-muted)] border-t border-[var(--border-subtle)] pt-3 font-medium">
-          <Link href="/" className="hover:text-[var(--accent-primary)] transition-colors flex items-center gap-1.5">
+          <Link href="/kiosk" className="hover:text-[var(--accent-primary)] transition-colors flex items-center gap-1.5">
             <UserCheck className="w-3.5 h-3.5" />
             <span>Kiosk Kurir</span>
           </Link>

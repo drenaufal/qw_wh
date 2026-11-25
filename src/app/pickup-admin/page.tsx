@@ -271,12 +271,16 @@ export default function PickupAdminPage() {
     const unsub2 = subscribe('driverArrival', handleUpdate);
     const unsub3 = subscribe('pickupShipped', handleUpdate);
     const unsub4 = subscribe('priorityUpdate', handleUpdate);
+    const unsub5 = subscribe('packingStart', handleUpdate);
+    const unsub6 = subscribe('packingComplete', handleUpdate);
 
     return () => {
       unsub1();
       unsub2();
       unsub3();
       unsub4();
+      unsub5();
+      unsub6();
     };
   }, [subscribe, fetchOrders]);
 
@@ -701,6 +705,10 @@ export default function PickupAdminPage() {
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span>Siap di Rak: <strong className="text-[var(--text-primary)]">{stagingShelves.length}</strong></span>
               </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-sky-500" />
+                <span>Sedang Packing: <strong className="text-[var(--text-primary)]">{packingOrders.length}</strong></span>
+              </span>
               {searchQuery && (
                 <span className="font-semibold text-[var(--accent-primary)]">
                   • Filter Aktif: &quot;{searchQuery}&quot; ({filteredOrders.length} hasil)
@@ -754,28 +762,35 @@ export default function PickupAdminPage() {
                     className="rounded-xl p-4 border-2 border-amber-400 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm flex flex-col justify-between gap-3"
                   >
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-mono">
-                          ANTREAN #{order.queue_number ?? (idx + 1)}
-                        </span>
-                        <span className="font-mono font-bold text-base text-[var(--text-primary)]">
-                          {order.order_number}
-                        </span>
-                        <StatusBadge status={order.status} />
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-mono">
+                            #{order.queue_number ?? (idx + 1)}
+                          </span>
+                          <span className="font-mono font-bold text-base text-[var(--text-primary)]">
+                            {order.order_number}
+                          </span>
+                        </div>
+                        {order.pickup_code && (
+                          <span
+                            className="font-mono font-bold text-base text-amber-700 dark:text-amber-300 flex items-center gap-1 shrink-0"
+                            title="Pickup Code"
+                          >
+                            <Tag className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span>{order.pickup_code}</span>
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
-                        {order.no_wsa && (
-                          <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
-                            WSA: {order.no_wsa}
-                          </span>
-                        )}
-                        {order.pickup_code && (
-                          <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1">
-                            <Tag className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                            <span>Pick #{order.pickup_code}</span>
-                          </span>
-                        )}
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 font-mono text-[11px]">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {order.no_wsa && (
+                            <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                              WSA: {order.no_wsa}
+                            </span>
+                          )}
+                        </div>
+                        <StatusBadge status={order.status} />
                       </div>
 
                       <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
@@ -870,25 +885,30 @@ export default function PickupAdminPage() {
                     }`}
                   >
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-start justify-between gap-2">
                         <span className="font-mono font-bold text-base text-[var(--text-primary)]">
                           {order.order_number}
                         </span>
-                        <PriorityBadge priority={order.priority_status} />
+                        {order.pickup_code && (
+                          <span
+                            className="font-mono font-bold text-base text-emerald-700 dark:text-emerald-300 flex items-center gap-1 shrink-0"
+                            title="Pickup Code"
+                          >
+                            <Tag className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>{order.pickup_code}</span>
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
-                        {order.no_wsa && (
-                          <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
-                            WSA: {order.no_wsa}
-                          </span>
-                        )}
-                        {order.pickup_code && (
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-800 dark:text-emerald-300 font-bold flex items-center gap-1">
-                            <Tag className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                            <span>Pick #{order.pickup_code}</span>
-                          </span>
-                        )}
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 font-mono text-[11px]">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {order.no_wsa && (
+                            <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                              WSA: {order.no_wsa}
+                            </span>
+                          )}
+                        </div>
+                        <PriorityBadge priority={order.priority_status} />
                       </div>
 
                       <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
@@ -948,21 +968,25 @@ export default function PickupAdminPage() {
           )}
         </div>
 
-        {/* HASIL PENCARIAN: ORDER SEDANG DIPACKING (HANYA MUNCUL JIKA ADA PENCARIAN) */}
-        {searchQuery.trim().length > 0 && packingOrders.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
-                <h2 className="text-sm font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
-                  Hasil Pencarian: Sedang Dipacking di Meja ({packingOrders.length})
-                </h2>
-              </div>
-              <span className="text-xs text-[var(--text-muted)]">
-                Paket sedang dikemas oleh staf gudang
-              </span>
+        {/* ZONE 3: ORDER SEDANG DIPACKING DI MEJA */}
+        <div>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+              <h2 className="text-sm font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
+                Area 3: Sedang Dipacking di Meja ({packingOrders.length})
+              </h2>
             </div>
+            <span className="text-xs text-[var(--text-muted)]">
+              Paket sedang dikemas oleh staf gudang
+            </span>
+          </div>
 
+          {packingOrders.length === 0 ? (
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 text-center text-xs text-[var(--text-muted)]">
+              Saat ini tidak ada order yang sedang dipacking.
+            </div>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {packingOrders.map((order) => (
                 <div
@@ -970,25 +994,30 @@ export default function PickupAdminPage() {
                   className="rounded-xl p-4 border border-sky-300 dark:border-sky-800 bg-sky-50/20 dark:bg-sky-950/10 shadow-sm flex flex-col justify-between gap-3"
                 >
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       <span className="font-mono font-bold text-base text-[var(--text-primary)]">
                         {order.order_number}
                       </span>
-                      <StatusBadge status={order.status} />
+                      {order.pickup_code && (
+                        <span
+                          className="font-mono font-bold text-base text-sky-700 dark:text-sky-300 flex items-center gap-1 shrink-0"
+                          title="Pickup Code"
+                        >
+                          <Tag className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                          <span>{order.pickup_code}</span>
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
-                      {order.no_wsa && (
-                        <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
-                          WSA: {order.no_wsa}
-                        </span>
-                      )}
-                      {order.pickup_code && (
-                        <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/35 text-sky-800 dark:text-sky-300 font-bold flex items-center gap-1">
-                          <Tag className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                          <span>Pick #{order.pickup_code}</span>
-                        </span>
-                      )}
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 font-mono text-[11px]">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {order.no_wsa && (
+                          <span className="px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium">
+                            WSA: {order.no_wsa}
+                          </span>
+                        )}
+                      </div>
+                      <StatusBadge status={order.status} />
                     </div>
 
                     <div className="text-xs space-y-0.5 text-[var(--text-secondary)]">
@@ -998,11 +1027,6 @@ export default function PickupAdminPage() {
                       <p className="font-semibold text-sky-700 dark:text-sky-400">
                         Ekspedisi: {order.courier_name || 'General'}
                       </p>
-                      {order.no_wsa && (
-                        <p className="font-mono text-[11px] text-[var(--text-muted)]">
-                          WSA: {order.no_wsa}
-                        </p>
-                      )}
                     </div>
 
                     <OrderItemsManifest
@@ -1028,8 +1052,8 @@ export default function PickupAdminPage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* EMPTY STATE: JIKA PENCARIAN TIDAK MENEMUKAN HASIL */}
         {searchQuery.trim().length > 0 &&

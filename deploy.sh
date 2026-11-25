@@ -17,8 +17,8 @@ fi
 echo "📦 [2/5] Memasang dependensi Node.js..."
 npm install --prefer-offline --no-audit
 
-echo "🗄️  [3/5] Menyiapkan struktur tabel database & data awal..."
-npm run db:setup
+echo "🗄️  [3/5] Menjalankan migrasi database..."
+npm run db:migrate
 
 echo "⚡ [4/5] Membangun aplikasi Next.js (Production Build)..."
 npm run build
