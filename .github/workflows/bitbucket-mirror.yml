@@ -1,0 +1,27 @@
+
+name: Mirror to Bitbucket
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Bitbucket remote
+        run: |
+          git remote add bitbucket \
+            https://${{ secrets.BB_USERNAME }}:${{ secrets.BB_TOKEN }}@bitbucket.org/${{ secrets.BB_WORKSPACE }}/${{ secrets.BB_REPO }}.git
+
+      - name: Push all branches
+        run: git push bitbucket --all
+
+      - name: Push all tags
+        run: git push bitbucket --tags
