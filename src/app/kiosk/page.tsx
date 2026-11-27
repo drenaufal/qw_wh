@@ -9,7 +9,6 @@ import { formatWIB, formatDuration, getElapsedSeconds } from '@/lib/utils/dateti
 import { StatusBadge, PriorityBadge, SSEStatusBeacon } from '@/components/ui';
 import { AutoSyncControls } from '@/components/AutoSyncControls';
 import {
-  Truck,
   RefreshCw,
   Tv,
   LogIn,
@@ -443,8 +442,12 @@ export default function CourierKioskPage() {
       {/* Top Header */}
       <header className="bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[var(--accent-primary)] text-white flex items-center justify-center shadow-sm">
-            <Truck className="w-5 h-5" />
+          <div className="w-14 h-10 rounded-lg bg-white border border-[var(--border-subtle)] flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
+            <img
+              src="/logowh.png"
+              alt="Logo Warehouse Queue"
+              className="w-full h-full object-contain scale-110"
+            />
           </div>
           <div>
             <h1 className="text-sm sm:text-base font-bold text-[var(--text-primary)] leading-tight">

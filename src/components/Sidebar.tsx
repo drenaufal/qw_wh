@@ -82,6 +82,14 @@ export function Sidebar() {
       external: true,
     },
     {
+      name: 'Monitor Pickup & Penerima',
+      href: '/status-pickup',
+      icon: Tv,
+      badge: 'PICKUP TV',
+      show: checkAccess('/status-pickup'),
+      external: true,
+    },
+    {
       name: 'Kiosk Kedatangan Driver',
       href: '/kiosk',
       icon: UserCheck,
@@ -111,8 +119,12 @@ export function Sidebar() {
         {/* Brand Header */}
         <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[var(--accent-primary)] text-white flex items-center justify-center text-lg font-bold shadow-sm">
-              WH
+            <div className="w-12 h-9 rounded-lg bg-white border border-[var(--border-subtle)] flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
+              <img
+                src="/logowh.png"
+                alt="Logo Warehouse Queue"
+                className="w-full h-full object-contain scale-110"
+              />
             </div>
             <div>
               <h2 className="text-sm font-bold text-[var(--text-primary)] leading-tight">

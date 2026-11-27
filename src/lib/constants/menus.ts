@@ -52,6 +52,14 @@ export const AVAILABLE_MENUS: MenuItemDefinition[] = [
     external: true,
   },
   {
+    key: 'STATUS_PICKUP_MONITOR',
+    name: 'Monitor Pickup & Penerima',
+    path: '/status-pickup',
+    description: 'Layar display antrian dengan kode pickup besar dan nama penerima yang diperjelas',
+    badge: 'PICKUP TV',
+    external: true,
+  },
+  {
     key: 'KIOSK',
     name: 'Kiosk Kedatangan Driver',
     path: '/kiosk',

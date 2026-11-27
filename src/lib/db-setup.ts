@@ -130,7 +130,7 @@ export async function setupDatabase() {
       CREATE TABLE IF NOT EXISTS packing_sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         order_id UUID NOT NULL REFERENCES orders(id),
-        packer_id UUID NOT NULL REFERENCES users(id),
+        packer_id UUID NULL REFERENCES users(id),
         started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         completed_at TIMESTAMPTZ NULL,
         notes TEXT NULL,
@@ -227,6 +227,8 @@ export async function setupDatabase() {
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS warna VARCHAR(255);
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS line_no INTEGER;
 
+      ALTER TABLE packing_sessions ALTER COLUMN packer_id DROP NOT NULL;
+
       -- Indexes
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
@@ -253,9 +255,9 @@ export async function setupDatabase() {
 
       INSERT INTO roles (code, name, permissions)
       VALUES 
-        ('SUPERADMIN', 'Super Admin', '["/dashboard", "/packing", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/kiosk", "/users", "/audit"]'::jsonb),
-        ('PACKER', 'Packer', '["/dashboard", "/packing", "/orders", "/shipped-orders", "/status", "/kiosk"]'::jsonb),
-        ('PICKUP_ADMIN', 'Pickup Admin', '["/dashboard", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/kiosk"]'::jsonb)
+        ('SUPERADMIN', 'Super Admin', '["/dashboard", "/packing", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/status-pickup", "/kiosk", "/users", "/audit"]'::jsonb),
+        ('PACKER', 'Packer', '["/dashboard", "/packing", "/orders", "/shipped-orders", "/status", "/status-pickup", "/kiosk"]'::jsonb),
+        ('PICKUP_ADMIN', 'Pickup Admin', '["/dashboard", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/status-pickup", "/kiosk"]'::jsonb)
       ON CONFLICT (code) DO UPDATE SET 
         name = EXCLUDED.name,
         permissions = CASE 

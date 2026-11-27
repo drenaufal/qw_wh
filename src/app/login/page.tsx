@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 import Link from 'next/link';
-import { Package, AlertTriangle, ArrowRight, UserCheck, Tv } from 'lucide-react';
+import { AlertTriangle, ArrowRight, UserCheck, Tv } from 'lucide-react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -46,8 +46,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 sm:p-8 shadow-sm">
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-[var(--accent-primary)] text-white flex items-center justify-center mx-auto mb-3 shadow-xs">
-            <Package className="w-6 h-6" />
+          <div className="w-28 h-16 rounded-xl bg-white border border-[var(--border-subtle)] flex items-center justify-center mx-auto mb-3 p-1.5 shadow-xs overflow-hidden">
+            <img
+              src="/logowh.png"
+              alt="Logo Warehouse Queue"
+              className="w-full h-full object-contain scale-110"
+            />
           </div>
           <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
             Portal Masuk Staf Gudang
