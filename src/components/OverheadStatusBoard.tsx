@@ -9,7 +9,6 @@ import { SSEStatusBeacon } from '@/components/ui';
 import { playNotificationSound } from '@/lib/utils/audio';
 import { TVAudioSettingsModal } from '@/components/TVAudioSettingsModal';
 import {
-  Tv,
   Settings2,
   Volume2,
   VolumeX,
@@ -426,8 +425,12 @@ export function OverheadStatusBoard({
       {/* Top TV Command Header */}
       <header className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-6 py-3.5 flex items-center justify-between shadow-sm sticky top-2 z-40">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-lg bg-[var(--accent-primary)] text-white flex items-center justify-center shadow-sm">
-            <Tv className="w-5 h-5" />
+          <div className="w-14 h-10 rounded-lg bg-white border border-[var(--border-subtle)] flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
+            <img
+              src="/logowh.png"
+              alt="Logo Warehouse Queue"
+              className="w-full h-full object-contain scale-110"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
