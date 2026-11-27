@@ -18,7 +18,7 @@ jobs:
       - name: Configure Bitbucket remote
         run: |
           git remote add bitbucket \
-            https://${{ secrets.BB_USERNAME }}:${{ secrets.BB_TOKEN }}@bitbucket.org/${{ secrets.BB_WORKSPACE }}/${{ secrets.BB_REPO }}.git
+            https://x-token-auth:${{ secrets.BB_TOKEN }}@bitbucket.org/${{ secrets.BB_WORKSPACE }}/${{ secrets.BB_REPO }}.git
 
       - name: Push all branches
         run: git push bitbucket main:main
