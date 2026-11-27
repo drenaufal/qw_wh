@@ -21,7 +21,4 @@ jobs:
             https://${{ secrets.BB_USERNAME }}:${{ secrets.BB_TOKEN }}@bitbucket.org/${{ secrets.BB_WORKSPACE }}/${{ secrets.BB_REPO }}.git
 
       - name: Push all branches
-        run: git push bitbucket --all
-
-      - name: Push all tags
-        run: git push bitbucket --tags
+        run: git push bitbucket main:main
