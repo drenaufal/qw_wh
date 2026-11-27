@@ -6,7 +6,7 @@ import { logAudit } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await authenticateRequest(req, ['SUPERADMIN']);
+    const auth = await authenticateRequest(req, ['SUPERADMIN'], '/users');
     if ('errorResponse' in auth) {
       return auth.errorResponse;
     }
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await authenticateRequest(req, ['SUPERADMIN']);
+    const auth = await authenticateRequest(req, ['SUPERADMIN'], '/users');
     if ('errorResponse' in auth) {
       return auth.errorResponse;
     }

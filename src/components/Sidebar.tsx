@@ -82,6 +82,14 @@ export function Sidebar() {
       external: true,
     },
     {
+      name: 'Monitor Pickup & Penerima',
+      href: '/status-pickup',
+      icon: Tv,
+      badge: 'PICKUP TV',
+      show: checkAccess('/status-pickup'),
+      external: true,
+    },
+    {
       name: 'Kiosk Kedatangan Driver',
       href: '/kiosk',
       icon: UserCheck,

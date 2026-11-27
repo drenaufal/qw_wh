@@ -140,7 +140,7 @@ export async function runMigration() {
       CREATE TABLE IF NOT EXISTS packing_sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         order_id UUID NOT NULL REFERENCES orders(id),
-        packer_id UUID NOT NULL REFERENCES users(id),
+        packer_id UUID NULL REFERENCES users(id),
         started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         completed_at TIMESTAMPTZ NULL,
         notes TEXT NULL,
@@ -245,8 +245,9 @@ export async function runMigration() {
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS warna VARCHAR(255);
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS line_no INTEGER;
 
-      -- Users columns
+      -- Users & Packing Sessions columns
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ NULL;
+      ALTER TABLE packing_sessions ALTER COLUMN packer_id DROP NOT NULL;
     `);
 
     // 4. Performance Indexes
@@ -276,15 +277,29 @@ export async function runMigration() {
     await client.query(`
       INSERT INTO roles (code, name, permissions)
       VALUES 
-        ('SUPERADMIN', 'Super Admin', '["/dashboard", "/packing", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/kiosk", "/users", "/audit"]'::jsonb),
-        ('PACKER', 'Packer', '["/dashboard", "/packing", "/orders", "/shipped-orders", "/status", "/kiosk"]'::jsonb),
-        ('PICKUP_ADMIN', 'Pickup Admin', '["/dashboard", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/kiosk"]'::jsonb)
+        ('SUPERADMIN', 'Super Admin', '["/dashboard", "/packing", "/pickup-admin", "/orders", "/shipped-orders", "/status", "/status-pickup", "/kiosk", "/users", "/audit"]'::jsonb),
+        ('PACKER', 'Operator Pickup', '["/dashboard", "/pickup-admin", "/shipped-orders", "/status", "/status-pickup", "/kiosk"]'::jsonb)
       ON CONFLICT (code) DO UPDATE SET 
         name = EXCLUDED.name,
         permissions = CASE 
           WHEN roles.permissions IS NULL OR roles.permissions = '[]'::jsonb THEN EXCLUDED.permissions 
           ELSE roles.permissions 
         END;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'migration_status_pickup_menu_v1') THEN
+          UPDATE roles
+          SET permissions = permissions || '["/status-pickup"]'::jsonb,
+              updated_at = NOW()
+          WHERE code IN ('SUPERADMIN', 'PACKER', 'PICKUP_ADMIN')
+            AND NOT (permissions @> '["/status-pickup"]'::jsonb);
+
+          INSERT INTO system_settings (key, value)
+          VALUES ('migration_status_pickup_menu_v1', '{"applied": true}'::jsonb)
+          ON CONFLICT (key) DO NOTHING;
+        END IF;
+      END $$;
 
       INSERT INTO system_settings (key, value)
       VALUES (

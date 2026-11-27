@@ -15,11 +15,13 @@ import {
   Lock,
 } from 'lucide-react';
 import { StaffLayout } from '@/components/StaffLayout';
+import { useAuth } from '@/lib/context/AuthContext';
 import { User, Role } from '@/lib/types';
 import { formatWIB } from '@/lib/utils/datetime';
 import { AVAILABLE_MENUS } from '@/lib/constants/menus';
 
 export default function UsersManagementPage() {
+  const { user: currentUser, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'USERS' | 'ROLES'>('USERS');
 
   // Users State
@@ -33,6 +35,12 @@ export default function UsersManagementPage() {
   const [userUsername, setUserUsername] = useState('');
   const [userPassword, setUserPassword] = useState('');
   const [userRoleCode, setUserRoleCode] = useState<string>('PACKER');
+
+  // User Edit Modal State
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserRoleCode, setEditUserRoleCode] = useState<string>('PACKER');
+  const [editUserPassword, setEditUserPassword] = useState('');
 
   // Role Create / Edit Modal State
   const [isCreateRoleOpen, setIsCreateRoleOpen] = useState(false);
@@ -152,6 +160,90 @@ export default function UsersManagementPage() {
       setErrorMsg(err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Open Edit User Modal
+  const openEditUser = (u: User) => {
+    setEditUser(u);
+    setEditUserName(u.name);
+    setEditUserRoleCode(u.role_code);
+    setEditUserPassword('');
+    setErrorMsg(null);
+  };
+
+  // Update User (Name, Role, Optional Password)
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+
+    if (editUserPassword.trim() && editUserPassword.trim().length < 6) {
+      setErrorMsg('Password baru minimal harus 6 karakter.');
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const token = localStorage.getItem('wh_auth_token');
+      const payload: Record<string, any> = {
+        name: editUserName.trim(),
+        role_code: editUserRoleCode,
+      };
+      if (editUserPassword.trim()) {
+        payload.password = editUserPassword.trim();
+      }
+
+      const res = await fetch(`/api/users/${editUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal memperbarui akun pengguna');
+
+      const editedSelf = currentUser?.id === editUser.id;
+      showNotification(`Data akun @${editUser.username} berhasil diperbarui!`);
+      setEditUser(null);
+      await loadAll();
+      if (editedSelf) {
+        await refreshUser();
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Delete User
+  const handleDeleteUser = async (u: User) => {
+    if (
+      !confirm(
+        `Apakah Anda yakin ingin menghapus permanen akun "${u.name}" (@${u.username})? Riwayat order/log tetap tersimpan aman.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('wh_auth_token');
+      const res = await fetch(`/api/users/${u.id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menghapus pengguna');
+
+      showNotification(`Akun @${u.username} berhasil dihapus.`);
+      await loadAll();
+    } catch (err: any) {
+      showNotification(err.message, true);
     }
   };
 
@@ -430,17 +522,51 @@ export default function UsersManagementPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleActive(u)}
-                            className={`px-3 py-1 rounded-lg border text-xs font-semibold transition-all ${
-                              u.is_active
-                                ? 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-300'
-                                : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-300'
-                            }`}
-                          >
-                            {u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditUser(u)}
+                              title="Edit nama, peran akses, atau reset password"
+                              className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold text-[var(--text-primary)] inline-flex items-center gap-1 transition-colors"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-indigo-500" />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleActive(u)}
+                              disabled={currentUser?.id === u.id}
+                              title={
+                                currentUser?.id === u.id
+                                  ? 'Tidak dapat menonaktifkan akun sendiri'
+                                  : u.is_active
+                                  ? 'Nonaktifkan akun'
+                                  : 'Aktifkan kembali akun'
+                              }
+                              className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                u.is_active
+                                  ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-900 dark:text-amber-300'
+                                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-300'
+                              }`}
+                            >
+                              {u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(u)}
+                              disabled={currentUser?.id === u.id}
+                              title={
+                                currentUser?.id === u.id
+                                  ? 'Tidak dapat menghapus akun Anda sendiri yang sedang login'
+                                  : `Hapus permanen akun @${u.username}`
+                              }
+                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -904,6 +1030,100 @@ export default function UsersManagementPage() {
                   className="py-2 px-4 rounded-lg bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-xs font-bold disabled:opacity-50 transition-colors"
                 >
                   {submitting ? 'Menyimpan...' : 'Perbarui Hak Akses'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: EDIT AKUN PENGGUNA */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] max-w-md w-full shadow-xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+              <div>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">
+                  Edit Akun Pengguna
+                </h3>
+                <span className="font-mono text-[11px] text-[var(--text-muted)]">
+                  @{editUser.username}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditUser(null)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateUser} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
+                  Nama Lengkap <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editUserName}
+                  onChange={(e) => setEditUserName(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
+                  Peran Akses (Role) <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={editUserRoleCode}
+                  onChange={(e) => setEditUserRoleCode(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
+                >
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.code}>
+                      {r.name} ({r.code})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                  Mengubah peran langsung memperbarui menu yang dapat dibuka akun ini.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
+                  Reset Password Baru <span className="text-[var(--text-muted)] font-normal">(Opsional)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editUserPassword}
+                  onChange={(e) => setEditUserPassword(e.target.value)}
+                  placeholder="Biarkan kosong jika tidak ingin ganti password"
+                  minLength={6}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent-primary)] font-medium"
+                />
+                <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                  Minimal 6 karakter jika ingin mengganti password pengguna.
+                </p>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditUser(null)}
+                  className="py-2 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !editUserName.trim()}
+                  className="py-2 px-4 rounded-lg bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-xs font-bold disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
               </div>
             </form>
